@@ -8,7 +8,7 @@ from race_sim import simulate_race_strategy
 from strategy_optimizer import find_best_strategy, format_plan, format_time
 
 st.set_page_config(page_title="F1 Lap & Strategy Sim", layout="wide")
-st.title("🏎️ F1 Lap Time & Strategy Simulator (Monza)")
+st.title("F1 Lap Time & Strategy Simulator (Monza)")
 
 # Sidebar Controls
 st.sidebar.header("Configuration")
