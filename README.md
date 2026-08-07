@@ -8,13 +8,16 @@ can be added.
 
 | File | What it does |
 |---|---|
-| `track_model.py` | Defines the track as a sequence of straights/corners (Monza built in) |
+| `track_model.py` | Defines each track as a sequence of straights/corners, with turn direction (Monza + Silverstone built in) |
+| `track_geometry.py` | Converts a track's segments into 2D (x, y) coordinates for the map view |
 | `car_model.py` | Point-mass car physics: engine, drag, downforce, tyre grip |
 | `lap_sim.py` | Forward-backward solver — turns track+car into a speed trace and lap time |
 | `tyre_model.py` | Grip degradation curves per compound (soft/medium/hard) |
 | `race_sim.py` | Runs a full stint/race lap-by-lap with degrading tyres |
 | `strategy_optimizer.py` | Brute-force search over pit strategies to find the fastest |
-| `main.py` | **Interactive menu — run this** |
+| `map_viz.py` | Builds the speed-colored top-down track map + animated lap replay |
+| `main.py` | **Interactive CLI menu — run this** |
+| `app.py` | **Interactive web app (Streamlit) — run this for the browser version** |
 | `calibrate_with_fastf1.py` | Compares the sim against real F1 telemetry (run locally, needs internet) |
 
 ## Car generations supported
@@ -107,6 +110,101 @@ in `main.py`. Corner radii and straight lengths can be derived from real
 FastF1 telemetry (X/Y position data lets you compute curvature directly) —
 that's the natural next step once Monza is calibrated.
 
+## Track map & lap replay
+
+The web app's "Track Map" tab (and `map_viz.py` if you want to script it)
+draws a top-down view of the track colored by simulated speed, plus an
+animated marker that runs a full lap using Plotly's play/pause frames.
+
+**How the 2D shape is built:** `track_model.py` now stores a turn
+*direction* (+1 right, -1 left) for every corner, not just a radius.
+`track_geometry.py` walks the segment list "turtle graphics" style —
+accumulating heading and position — to produce (x, y) coordinates. Two
+correction steps make this close into a clean loop: total heading change is
+scaled to exactly ±360° (any simple closed loop must satisfy this), and any
+remaining start/end position gap is distributed smoothly across the lap (a
+standard surveying "closing error" adjustment).
+
+**Important caveats:**
+- The map is a **schematic shape**, not a survey-accurate track outline.
+  Corner angles are chosen to close cleanly and look recognizable, not
+  measured from real track data — Silverstone's `Brooklands`/`Luffield`
+  directions were even flipped from their real-world sense purely to make
+  the loop close without a huge distortion factor. If you want an accurate
+  outline, pull real X/Y telemetry via FastF1 (it has exact position data)
+  and replace the hand-built segments with it.
+- The drawn line is the **single path already implied by each corner's
+  assumed radius** in the physics model — it is NOT a true racing-line
+  optimization. A real racing-line solver needs track-width boundaries
+  (inside/outside kerb positions) and a curvature-minimization solve to find
+  the genuinely fastest path across the full width of the track. That's a
+  good next step, not yet built.
+
+## Adding another track
+
+1. In `track_model.py`, add a new `Segment` list (corners now need a
+   `direction` too: `+1` for right-hand, `-1` for left-hand).
+2. Register it in the `TRACKS` dict and `TRACK_PIT_LOSS_S` dict.
+3. Run `python3 track_geometry.py` — it prints the closure correction
+   factor for every registered track and saves `track_shapes_test.png` so
+   you can eyeball the shape before using it. A factor far from 1.0 (or a
+   self-intersecting shape in the plot) means the corner angles need
+   rebalancing — see how Silverstone's corners were adjusted in
+   `track_model.py` for the pattern to follow (pick target angles that sum
+   to ±360° by construction, rather than trying to hand-derive lengths from
+   real-world corner descriptions and hoping they close).
+4. That's it — `main.py` and `app.py` both pick up new tracks automatically
+   from the `TRACKS` dict.
+
+## Running the web app locally
+
+```bash
+streamlit run app.py
+```
+
+Opens at `http://localhost:8501` — sidebar picks the car generation, and
+three tabs cover single-lap simulation, custom strategy testing, and the
+strategy optimizer, all backed by the same physics engine as the CLI.
+
+## Deploying for free (Streamlit Community Cloud)
+
+This gets you a public URL (e.g. `yourname-f1sim.streamlit.app`) at zero
+cost — no credit card, no server to manage. Steps:
+
+1. **Push this project to GitHub.**
+   ```bash
+   git init
+   git add .
+   git commit -m "F1 lap + strategy simulator"
+   git branch -M main
+   git remote add origin https://github.com/<your-username>/f1sim.git
+   git push -u origin main
+   ```
+   (Create the empty repo on GitHub first if you haven't — github.com/new)
+
+2. **Go to [share.streamlit.io](https://share.streamlit.io)** and sign in
+   with your GitHub account (free).
+
+3. Click **"New app"**, pick your `f1sim` repo, branch `main`, and set the
+   main file path to `app.py`.
+
+4. Click **Deploy**. First build takes a minute or two (installs
+   `requirements.txt`); after that it's live at a public URL you can share.
+
+5. **Updating later:** every time you `git push` to `main`, the deployed app
+   auto-redeploys. No redeployment step needed.
+
+**Free tier limits to know about:** Streamlit Community Cloud apps sleep
+after a period of inactivity and wake up on the next visit (a few seconds'
+delay), and there's a modest RAM ceiling (~1GB) — fine for this project, but
+if you ever add heavier simulations (more tracks, wider strategy search
+grids), keep the `step` slider defaults conservative in `app.py` so a single
+optimizer run doesn't time out or exceed memory on the free tier.
+
+**Alternative free host:** [Hugging Face Spaces](https://huggingface.co/spaces)
+also hosts Streamlit apps for free — create a Space, choose the Streamlit SDK,
+and push the same files there instead (or in addition).
+
 ## Known simplifications (roadmap for improvement)
 
 - No weight transfer / suspension model (point-mass only)
@@ -123,3 +221,11 @@ that's the natural next step once Monza is calibrated.
   only tapers override power by speed, not by cumulative energy deployed —
   adding a per-lap energy budget (deployed Joules vs available battery
   capacity) is the natural next step for 2026 accuracy
+- **Track maps are schematic, not survey-accurate** (see "Track map & lap
+  replay" above) — corner angles are hand-tuned to close the loop cleanly,
+  not measured from real track geometry
+- **No true racing-line optimization** — the drawn/animated path is the
+  single line implied by each corner's assumed radius, not a solve across
+  the track's actual width. Needs track-width boundary data + a
+  curvature-minimization algorithm (e.g. minimum-curvature or optimal
+  control lap-time solvers used in real race engineering) to add properly

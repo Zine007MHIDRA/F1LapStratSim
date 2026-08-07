@@ -11,14 +11,26 @@ import sys
 import matplotlib.pyplot as plt
 
 from car_model import CarParams, car_2025, car_2026
-from track_model import MONZA_SEGMENTS, total_length
+from track_model import TRACKS, total_length
 from lap_sim import simulate_lap
 from tyre_model import COMPOUNDS
-from race_sim import simulate_race_strategy, PIT_STOP_LOSS_S
+from race_sim import simulate_race_strategy, pit_loss_for
 from strategy_optimizer import find_best_strategy, format_plan, format_time, generate_1stop_plans, generate_2stop_plans
 
-TRACK_NAME = "Monza"
-TRACK = MONZA_SEGMENTS
+
+def choose_track():
+    names = list(TRACKS.keys())
+    print("\nWhich track?")
+    for i, name in enumerate(names, 1):
+        print(f"{i}. {name}")
+    choice = input(f"Choose (1-{len(names)}) [default 1]: ").strip()
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(names):
+            return names[idx], TRACKS[names[idx]]
+    except ValueError:
+        pass
+    return names[0], TRACKS[names[0]]
 
 
 def choose_car():
@@ -96,7 +108,7 @@ def option_custom_strategy(car):
         # only matters if the last stint wasn't auto-filled correctly
         pass
 
-    res = simulate_race_strategy(TRACK, car, plan, total_laps, step=8.0)
+    res = simulate_race_strategy(TRACK, car, plan, total_laps, step=8.0, track_name=TRACK_NAME)
     t = res["total_time"]
     print(f"\nStrategy: {format_plan(plan)}")
     print(f"Total race time: {format_time(t)}  ({t:.1f}s)")
@@ -121,8 +133,8 @@ def option_optimize(car):
     if confirm != "y":
         return
 
-    results = find_best_strategy(TRACK, car, total_laps, include_2stop=include_2stop, step=step)
-    print(f"\nTop 10 strategies for {TRACK_NAME} ({total_laps} laps, pit loss = {PIT_STOP_LOSS_S}s):\n")
+    results = find_best_strategy(TRACK, car, total_laps, include_2stop=include_2stop, step=step, track_name=TRACK_NAME)
+    print(f"\nTop 10 strategies for {TRACK_NAME} ({total_laps} laps, pit loss = {pit_loss_for(TRACK_NAME)}s):\n")
     for i, (t, plan) in enumerate(results[:10]):
         gap = t - results[0][0]
         gap_str = f"+{gap:.1f}s" if gap > 0 else "BEST"
@@ -146,8 +158,10 @@ def option_car_params(car):
 
 
 def main():
+    global TRACK, TRACK_NAME
+    TRACK_NAME, TRACK = choose_track()
     car = choose_car()
-    print("F1 lap + strategy simulator loaded. Track: Monza (5793m).")
+    print(f"F1 lap + strategy simulator loaded. Track: {TRACK_NAME} ({total_length(TRACK):.0f}m).")
     print("NOTE: physics constants are a first-pass model, tuned to match")
     print("reported real-world deltas (2026 vs 2025) rather than fitted to")
     print("raw telemetry. Calibrate further with calibrate_with_fastf1.py")

@@ -2,3 +2,5 @@ numpy
 matplotlib
 scipy
 fastf1
+streamlit
+plotly
