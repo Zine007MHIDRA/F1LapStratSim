@@ -117,15 +117,72 @@ SILVERSTONE_SEGMENTS: List[Segment] = [
 ]
 
 
+# ============================================================
+# SPA-FRANCORCHAMPS (Circuit de Spa-Francorchamps) -- 7004 m, longest track
+# on the calendar. Corner angles chosen to sum to +-360 deg by construction.
+# La Source is kept as a genuine tight right-hand hairpin (its defining,
+# unmistakable real-world character); several other corners (Rivage, Pouhon,
+# Blanchimont) are drawn as right-handers here even though they're famously
+# LEFT-handers in reality -- purely so the loop closes cleanly without
+# self-intersecting, same simplification used for Silverstone's Brooklands/
+# Luffield. Pouhon (a long double-apex sweeper) is split into two linked
+# sub-corners, same technique as the chicanes.
+#
+# IMPORTANT: this is a flat 2D model -- Spa's signature elevation change
+# (Eau Rouge/Raidillon compresses the car uphill by ~40m) is NOT modeled.
+# The corner is still here (as a direction change with a representative
+# radius), but the physics doesn't know it's a hill, so the extra grip load
+# from compression at the bottom of Eau Rouge -- part of why it's so
+# famous/difficult in reality -- isn't captured. Adding elevation would mean
+# giving car_model.py a slope-dependent gravity component along the track
+# direction, which isn't built yet -- noted as a roadmap item in the README.
+# ============================================================
+SPA_SEGMENTS: List[Segment] = [
+    Segment("straight", 130, "Start/Finish straight"),
+    Segment("corner", 65, "La Source", radius=25, direction=+1),
+    Segment("straight", 403, "Downhill to Eau Rouge"),
+    Segment("corner", 87, "Eau Rouge", radius=250, direction=-1),
+    Segment("straight", 24, "Eau Rouge link"),
+    Segment("corner", 87, "Raidillon", radius=200, direction=+1),
+    Segment("straight", 1776, "Kemmel Straight"),
+    Segment("corner", 63, "Les Combes (entry)", radius=90, direction=+1),
+    Segment("straight", 32, "Les Combes link"),
+    Segment("corner", 27, "Les Combes (exit)", radius=45, direction=-1),
+    Segment("straight", 323, "Run to Malmedy"),
+    Segment("corner", 37, "Malmedy", radius=60, direction=-1),
+    Segment("straight", 241, "Run to Rivage"),
+    Segment("corner", 39, "Rivage", radius=50, direction=+1),
+    Segment("straight", 565, "Downhill to Pouhon"),
+    Segment("corner", 141, "Pouhon (entry)", radius=180, direction=+1),
+    Segment("straight", 24, "Pouhon link"),
+    Segment("corner", 126, "Pouhon (exit)", radius=160, direction=+1),
+    Segment("straight", 484, "Run to Fagnes"),
+    Segment("corner", 24, "Fagnes (entry)", radius=45, direction=-1),
+    Segment("straight", 24, "Fagnes link"),
+    Segment("corner", 20, "Fagnes (exit)", radius=45, direction=+1),
+    Segment("straight", 645, "Run to Stavelot"),
+    Segment("corner", 79, "Stavelot", radius=130, direction=+1),
+    Segment("straight", 565, "Run to Blanchimont"),
+    Segment("corner", 269, "Blanchimont", radius=220, direction=+1),
+    Segment("straight", 403, "Run to Bus Stop"),
+    Segment("corner", 18, "Bus Stop (entry)", radius=35, direction=-1),
+    Segment("straight", 24, "Bus Stop link"),
+    Segment("corner", 18, "Bus Stop (exit)", radius=35, direction=+1),
+    Segment("straight", 241, "Run to start/finish"),
+]
+
+
 TRACKS: Dict[str, List[Segment]] = {
     "Monza": MONZA_SEGMENTS,
     "Silverstone": SILVERSTONE_SEGMENTS,
+    "Spa-Francorchamps": SPA_SEGMENTS,
 }
 
 TRACK_PIT_LOSS_S: Dict[str, float] = {
     # Rough real-world pit lane time loss (in vs box vs staying out), track-specific
     "Monza": 24.0,
     "Silverstone": 21.0,
+    "Spa-Francorchamps": 20.0,
 }
 
 

@@ -143,16 +143,19 @@ standard surveying "closing error" adjustment).
 ## Adding another track
 
 1. In `track_model.py`, add a new `Segment` list (corners now need a
-   `direction` too: `+1` for right-hand, `-1` for left-hand).
+   `direction` too: `+1` for right-hand, `-1` for left-hand). See Spa's
+   comment block for a worked example of picking angles that sum to ±360°
+   by construction, including how a few corners' real-world handedness got
+   flipped purely to keep the shape from self-intersecting.
 2. Register it in the `TRACKS` dict and `TRACK_PIT_LOSS_S` dict.
 3. Run `python3 track_geometry.py` — it prints the closure correction
    factor for every registered track and saves `track_shapes_test.png` so
-   you can eyeball the shape before using it. A factor far from 1.0 (or a
-   self-intersecting shape in the plot) means the corner angles need
-   rebalancing — see how Silverstone's corners were adjusted in
-   `track_model.py` for the pattern to follow (pick target angles that sum
-   to ±360° by construction, rather than trying to hand-derive lengths from
-   real-world corner descriptions and hoping they close).
+   you can eyeball the shape before using it. A factor far from 1.0 **is
+   not the main risk** — as Spa showed, a factor near 1.0 can still produce
+   a self-intersecting shape if a few corners carry very large angles that
+   fight each other. Prefer many modest-angle corners (20–70°) over several
+   large ones (90°+) — that's what actually fixed Spa's self-intersection,
+   not the closure factor.
 4. That's it — `main.py` and `app.py` both pick up new tracks automatically
    from the `TRACKS` dict.
 
@@ -229,3 +232,8 @@ and push the same files there instead (or in addition).
   the track's actual width. Needs track-width boundary data + a
   curvature-minimization algorithm (e.g. minimum-curvature or optimal
   control lap-time solvers used in real race engineering) to add properly
+- **No elevation modeling** — Spa's Eau Rouge/Raidillon compression (a
+  genuinely famous ~40m uphill climb that loads the tyres extra hard at the
+  bottom) isn't captured; the physics is flat 2D. Adding it means giving
+  `car_model.py` a slope-dependent gravity component along the track
+  direction at each point
