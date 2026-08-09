@@ -33,16 +33,16 @@ def choose_track():
     return names[0], TRACKS[names[0]]
 
 
-def choose_car():
+def choose_car(track_name: str):
     print("\nWhich car generation?")
     print("1. 2025-spec (fixed wing, pre-active-aero era)")
     print("2. 2026-spec (active aero + Manual Override, current regs)")
     choice = input("Choose (1/2) [default 2]: ").strip()
     if choice == "1":
         print("Using 2025-spec car.")
-        return car_2025()
+        return car_2025(track_name)
     print("Using 2026-spec car (active aero, ~30% less downforce, Manual Override).")
-    return car_2026()
+    return car_2026(track_name)
 
 
 def menu():
@@ -160,7 +160,7 @@ def option_car_params(car):
 def main():
     global TRACK, TRACK_NAME
     TRACK_NAME, TRACK = choose_track()
-    car = choose_car()
+    car = choose_car(TRACK_NAME)
     print(f"F1 lap + strategy simulator loaded. Track: {TRACK_NAME} ({total_length(TRACK):.0f}m).")
     print("NOTE: physics constants are a first-pass model, tuned to match")
     print("reported real-world deltas (2026 vs 2025) rather than fitted to")

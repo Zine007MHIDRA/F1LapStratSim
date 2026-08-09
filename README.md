@@ -22,20 +22,48 @@ can be added.
 
 ## Car generations supported
 
-The simulator supports two car "eras", both for Monza:
+The simulator supports two car "eras", both track-specific (see
+"Cross-track calibration" below for why):
 
-- **`car_2025()`** — fixed-wing car (pre-2026 regs). Calibrated against real
-  2023 Monza qualifying telemetry — lap time lands within ~5s of real pole pace.
-- **`car_2026()`** — current active-aero regs. Models Z-mode (high downforce,
-  used in corners) and X-mode (low drag, used on straights) as genuinely
-  different aero states, plus the Manual Override MGU-K boost. Tuned to match
-  *reported real-world deltas* from the first 2026 races (Melbourne, Shanghai,
-  Bahrain testing): cars running ~2-3s slower than 2025 overall despite higher
-  top speeds, because the ~30% downforce cut hurts fast corners more than
-  active aero's straight-line gains make up for. This is NOT yet fitted to raw
-  2026 telemetry — see the calibration section below.
+- **`car_2025(track_name)`** — fixed-wing car (pre-2026 regs).
+- **`car_2026(track_name)`** — current active-aero regs. Models Z-mode (high
+  downforce, used in corners) and X-mode (low drag, used on straights) as
+  genuinely different aero states, plus the Manual Override MGU-K boost.
 
-`main.py` asks which car generation to use at startup.
+`main.py` and `app.py` both ask which track first, then pass it into the car
+factory automatically.
+
+## Cross-track calibration
+
+Earlier versions used one fixed aero spec for every track. That's not how
+real F1 works — teams run a different wing level at every circuit (Monza
+minimum downforce, Silverstone/Spa considerably more) — and it showed: Monza
+and Silverstone tracked real lap times reasonably, but Spa (dominated by its
+long Kemmel Straight) came out unrealistically fast, landing close to real
+**pole** pace despite the model representing a heavy, full-fuel race car.
+
+Retuned against real fastest-race-lap times (2024/2025 GP results) so all
+three tracks land at a **consistent ~104% of real fastest-lap pace** — a
+defensible gap for a full-fuel, no-DRS single lap:
+
+| Track | 2025 sim | Real fastest race lap | Ratio |
+|---|---|---|---|
+| Monza | 84.00s | 80.90s | 103.8% |
+| Silverstone | 92.88s | 89.34s | 104.0% |
+| Spa-Francorchamps | 108.87s | 104.70s | 104.0% |
+
+The 2026 car adds a consistent +2s on top of each of these (matching the
+real-world 2026-vs-2025 delta established from early-season data).
+
+**One honest wrinkle:** Monza's tuned `ClA=3.20` is NOT a realistic downforce
+value — real Monza runs the *lowest* downforce of any track, the opposite of
+what that number implies. It's compensating for a side effect of
+`track_geometry.py`'s closure correction: Monza's corner arc lengths were
+extended (same radius, longer arc) so the drawn map forms a clean closed
+loop, and that alone cost several seconds of lap time by making the car
+spend longer at corner-capped speed. Retuning the geometry itself (shorter,
+more realistic arc lengths) instead of compensating via `ClA` is the more
+correct long-term fix — see "Known simplifications" below.
 
 ## Setup
 
@@ -210,6 +238,12 @@ and push the same files there instead (or in addition).
 
 ## Known simplifications (roadmap for improvement)
 
+- **Monza's tuned aero doesn't reflect real relative downforce levels**
+  (see "Cross-track calibration" above) — it's compensating for the
+  track-map closure correction's effect on corner arc lengths, not modeling
+  a real wing choice. Reworking `track_model.py`'s Monza corner lengths to
+  be shorter/more realistic (while still closing the geometry loop) and
+  re-tuning `ClA` down afterward would fix this properly.
 - No weight transfer / suspension model (point-mass only)
 - No wet-weather tyre compounds or track evolution
 - No traffic / overtaking / safety car modeling in the strategy optimizer

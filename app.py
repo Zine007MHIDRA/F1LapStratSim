@@ -38,7 +38,7 @@ car_choice = st.sidebar.radio(
     "Car generation",
     ["2026 (active aero, current regs)", "2025 (fixed wing)"],
 )
-car = car_2026() if car_choice.startswith("2026") else car_2025()
+car = car_2026(track_name) if car_choice.startswith("2026") else car_2025(track_name)
 
 with st.sidebar.expander("About this model"):
     st.markdown(

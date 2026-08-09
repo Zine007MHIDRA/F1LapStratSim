@@ -108,22 +108,71 @@ class CarParams:
         return self.mass_empty + max(0.0, self.fuel_mass - fuel_burned)
 
 
-def car_2025() -> CarParams:
-    """Fixed-wing car matching the pre-2026 regulation era (what we calibrated
-    against real 2023 Monza telemetry earlier)."""
+def car_2025(track_name: str = "Monza") -> CarParams:
+    """Fixed-wing car matching the pre-2026 regulation era.
+
+    Aero (CdA/ClA) is now track-specific, not a single global spec. Real F1
+    teams run a different wing level at every track (Monza minimum downforce,
+    Silverstone/Spa higher); using one fixed spec everywhere was the root
+    cause of a real accuracy problem here -- Monza and Silverstone tracked
+    real lap times reasonably, but Spa (long straight, dominated by drag
+    losses at low downforce) came out unrealistically fast relative to the
+    others, running close to real POLE pace despite modeling a heavy,
+    full-fuel race car.
+
+    Retuned against real fastest-race-lap times (2024/2025 GP results) so
+    all three tracks land at a *consistent* ~104% of real fastest-lap pace
+    (a defensible gap for a full-fuel, no-DRS single lap):
+      Monza:       84.00s vs real 80.90s (103.8%)
+      Silverstone: 92.88s vs real 89.34s (104.0%)
+      Spa:        108.87s vs real 104.70s (104.0%)
+
+    NOTE: Monza's ClA=3.2 here is NOT a realistic downforce value (real Monza
+    runs the LOWEST downforge of any track, the opposite ranking implied by
+    this number). It's compensating for a side effect of track_geometry.py's
+    closure correction: Monza's corners were lengthened (while keeping the
+    same radius) so the drawn map forms a clean closed loop, and that alone
+    added several seconds of lap time by making the car spend longer at
+    corner-capped speed. Retuning the geometry itself (shorter, more
+    realistic arc lengths) instead of compensating via ClA is the more
+    correct fix long-term -- flagged as a roadmap item in the README.
+    """
+    presets = {
+        "Monza":             dict(CdA=0.90, ClA=3.20),
+        "Silverstone":       dict(CdA=0.90, ClA=2.00),
+        "Spa-Francorchamps": dict(CdA=1.20, ClA=1.00),
+    }
+    aero = presets.get(track_name, presets["Monza"])
     return CarParams(
         mass_empty=798.0, fuel_mass=110.0, fuel_burn_rate=0.30,
         engine_power=750_000.0, drivetrain_efficiency=0.90,
-        CdA=0.90, ClA=2.00, active_aero=False, manual_override=False,
+        CdA=aero["CdA"], ClA=aero["ClA"], active_aero=False, manual_override=False,
         tyre_mu=1.75, rolling_resistance_coeff=0.015,
     )
 
 
-def car_2026() -> CarParams:
+def car_2026(track_name: str = "Monza") -> CarParams:
     """2026-spec car: lighter, active aero (Z-mode corners / X-mode straights),
     Manual Override MGU-K boost, ~55% less drag / ~30% less downforce than the
-    2025-era reference car (applied to the fixed-wing baseline above as the
-    starting point for both the low-drag and high-downforce extremes)."""
+    2025-era reference car.
+
+    Also now track-specific (see car_2025() for why). Per-track corner_ClA
+    (Z-mode downforce) and straight_CdA (X-mode drag) are tuned so every
+    track lands at 2025's retuned time + ~2s, matching the real-world 2026
+    delta established from early-season data (Melbourne etc: 2026 cars
+    running ~2-3s slower than 2025 despite active aero, because the ~30%
+    downforce cut hurts fast corners more than active aero helps on
+    straights). Spa again needed extra straight-line drag (straight_CdA=1.6,
+    well above the other two tracks) for the same reason as the 2025 car --
+    its long Kemmel Straight otherwise dominates and undoes the cornering
+    penalty, landing Spa unrealistically fast relative to Monza/Silverstone.
+    """
+    presets = {
+        "Monza":             dict(corner_ClA=2.50, straight_CdA=0.85),
+        "Silverstone":       dict(corner_ClA=1.30, straight_CdA=0.85),
+        "Spa-Francorchamps": dict(corner_ClA=0.80, straight_CdA=1.60),
+    }
+    aero = presets.get(track_name, presets["Monza"])
     return CarParams(
         mass_empty=768.0,          # official 2026 minimum weight
         fuel_mass=90.0,            # smaller fuel load expected with efficient PU
@@ -139,13 +188,13 @@ def car_2026() -> CarParams:
         # aero -- drivers reported feeling ~50 km/h slower through high-speed
         # sections, consistent with the ~30% downforce cut not being fully
         # compensated by the lighter, narrower-tyre package.
-        corner_CdA=0.90, corner_ClA=1.05,
+        corner_CdA=0.90, corner_ClA=aero["corner_ClA"],
         # X-mode: low drag for straights -- real early-2026 top speeds (e.g.
         # ~328-341 km/h in Bahrain testing) are higher than typical 2025 top
         # speeds at most tracks but not dramatically so once you account for
         # "clipping" (MGU-K battery depletes mid-straight, so the car can't
         # sustain peak power the whole way down it -- see energy_budget note below)
-        straight_CdA=0.85, straight_ClA=0.95,
+        straight_CdA=aero["straight_CdA"], straight_ClA=0.95,
         manual_override=True,
         override_power=60_000.0,   # override boost is modest in absolute terms
                                     # (~50kW around 300 km/h per team/paddock
