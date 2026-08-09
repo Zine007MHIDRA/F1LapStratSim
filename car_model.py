@@ -109,75 +109,79 @@ class CarParams:
 
 
 def car_2025(track_name: str = "Monza") -> CarParams:
-    """Fixed-wing car matching the pre-2026 regulation era.
+    """Fixed-wing car matching the pre-2026 regulation era, tuned to real
+    QUALIFYING (pole) pace -- not full-race pace.
 
-    Aero (CdA/ClA) is now track-specific, not a single global spec. Real F1
-    teams run a different wing level at every track (Monza minimum downforce,
-    Silverstone/Spa higher); using one fixed spec everywhere was the root
-    cause of a real accuracy problem here -- Monza and Silverstone tracked
-    real lap times reasonably, but Spa (long straight, dominated by drag
-    losses at low downforce) came out unrealistically fast relative to the
-    others, running close to real POLE pace despite modeling a heavy,
-    full-fuel race car.
+    Aero (CdA/ClA) is track-specific: real F1 teams run a different wing
+    level at every track (Monza minimum downforce, Silverstone/Spa higher).
+    Fuel load is also qualifying-trim (15kg, a representative out+flying+in
+    lap load) rather than a full race tank (110kg) -- using race fuel while
+    trying to match pole times was papering over ~95kg of extra mass with
+    unrealistic downforce, which is why earlier tuning passes needed
+    increasingly extreme ClA values without ever quite closing the gap.
+    Peak tyre grip (tyre_mu=1.90) and engine power (780kW) are also nudged
+    up slightly from the race-pace defaults, representing qualifying-spec
+    soft tyres and full engine mode.
 
-    Retuned against real fastest-race-lap times (2024/2025 GP results) so
-    all three tracks land at a *consistent* ~104% of real fastest-lap pace
-    (a defensible gap for a full-fuel, no-DRS single lap):
-      Monza:       84.00s vs real 80.90s (103.8%)
-      Silverstone: 92.88s vs real 89.34s (104.0%)
-      Spa:        108.87s vs real 104.70s (104.0%)
+    Retuned against real 2025 GP pole times, landing within ~0.1s of each:
+      Monza:       78.72s vs real pole 78.79s (Verstappen, 1:18.792)
+      Silverstone: 84.97s vs real pole 84.89s (Verstappen, 1:24.892)
+      Spa:        100.53s vs real pole 100.56s (Antonelli, 1:40.562)
 
-    NOTE: Monza's ClA=3.2 here is NOT a realistic downforce value (real Monza
-    runs the LOWEST downforge of any track, the opposite ranking implied by
-    this number). It's compensating for a side effect of track_geometry.py's
-    closure correction: Monza's corners were lengthened (while keeping the
-    same radius) so the drawn map forms a clean closed loop, and that alone
-    added several seconds of lap time by making the car spend longer at
-    corner-capped speed. Retuning the geometry itself (shorter, more
-    realistic arc lengths) instead of compensating via ClA is the more
-    correct fix long-term -- flagged as a roadmap item in the README.
+    NOTE: this now represents a single hot qualifying lap, not sustainable
+    full-race pace -- race-distance strategy sims (race_sim.py) will run
+    faster than real full-fuel race pace as a result, since they reuse this
+    same car spec across a whole stint. A proper fix would give race_sim a
+    separate race-trim car (heavier fuel, slightly less aggressive tyre_mu)
+    instead of reusing the qualifying-tuned spec for both purposes --
+    flagged as a roadmap item in the README.
     """
     presets = {
-        "Monza":             dict(CdA=0.90, ClA=3.20),
-        "Silverstone":       dict(CdA=0.90, ClA=2.00),
-        "Spa-Francorchamps": dict(CdA=1.20, ClA=1.00),
+        "Monza":             dict(CdA=0.90, ClA=3.60),
+        "Silverstone":       dict(CdA=0.90, ClA=2.60),
+        "Spa-Francorchamps": dict(CdA=0.90, ClA=1.25),
     }
     aero = presets.get(track_name, presets["Monza"])
     return CarParams(
-        mass_empty=798.0, fuel_mass=110.0, fuel_burn_rate=0.30,
-        engine_power=750_000.0, drivetrain_efficiency=0.90,
+        mass_empty=798.0, fuel_mass=15.0, fuel_burn_rate=0.30,
+        engine_power=780_000.0, drivetrain_efficiency=0.90,
         CdA=aero["CdA"], ClA=aero["ClA"], active_aero=False, manual_override=False,
-        tyre_mu=1.75, rolling_resistance_coeff=0.015,
+        tyre_mu=1.90, rolling_resistance_coeff=0.015,
     )
 
 
 def car_2026(track_name: str = "Monza") -> CarParams:
     """2026-spec car: lighter, active aero (Z-mode corners / X-mode straights),
-    Manual Override MGU-K boost, ~55% less drag / ~30% less downforce than the
-    2025-era reference car.
+    Manual Override MGU-K boost -- also now tuned to real QUALIFYING pace on
+    a qualifying-trim fuel load (15kg), same reasoning as car_2025() above.
 
-    Also now track-specific (see car_2025() for why). Per-track corner_ClA
-    (Z-mode downforce) and straight_CdA (X-mode drag) are tuned so every
-    track lands at 2025's retuned time + ~2s, matching the real-world 2026
-    delta established from early-season data (Melbourne etc: 2026 cars
-    running ~2-3s slower than 2025 despite active aero, because the ~30%
-    downforce cut hurts fast corners more than active aero helps on
-    straights). Spa again needed extra straight-line drag (straight_CdA=1.6,
-    well above the other two tracks) for the same reason as the 2025 car --
-    its long Kemmel Straight otherwise dominates and undoes the cornering
-    penalty, landing Spa unrealistically fast relative to Monza/Silverstone.
+    Per-track corner_ClA (Z-mode downforce) and straight_CdA (X-mode drag)
+    tuned against real 2026 GP pole times where available:
+      Silverstone: 88.06s vs real pole 88.11s (Antonelli, 1:28.111)
+      Spa:        104.46s vs real pole 104.36s (Antonelli, 1:44.361)
+      Monza:       82.35s vs an ESTIMATED 82.30s -- the 2026 Italian GP
+        hasn't happened yet this season (it's a September race), so this
+        target is extrapolated from the observed 2025->2026 pole delta at
+        the other two tracks (+3.22s at Silverstone, +3.80s at Spa, ~+3.5s
+        average) applied to Monza's real 2025 pole (78.792s). Re-tune this
+        once the real 2026 Italian GP has happened.
+
+    Spa again needed extra straight-line drag (straight_CdA=1.13) for the
+    same reason as the 2025 car -- its long Kemmel Straight otherwise
+    dominates and undoes the cornering penalty, landing Spa unrealistically
+    fast relative to Monza/Silverstone.
     """
     presets = {
-        "Monza":             dict(corner_ClA=2.50, straight_CdA=0.85),
-        "Silverstone":       dict(corner_ClA=1.30, straight_CdA=0.85),
-        "Spa-Francorchamps": dict(corner_ClA=0.80, straight_CdA=1.60),
+        "Monza":             dict(corner_ClA=2.32, straight_CdA=0.85),
+        "Silverstone":       dict(corner_ClA=1.90, straight_CdA=0.85),
+        "Spa-Francorchamps": dict(corner_ClA=0.70, straight_CdA=1.13),
     }
     aero = presets.get(track_name, presets["Monza"])
     return CarParams(
         mass_empty=768.0,          # official 2026 minimum weight
-        fuel_mass=90.0,            # smaller fuel load expected with efficient PU
+        fuel_mass=15.0,            # qualifying-trim load (see car_2025() docstring)
         fuel_burn_rate=0.28,
-        engine_power=750_000.0,    # ~1000hp combined ICE+MGU-K base output (similar total to 2025)
+        engine_power=780_000.0,    # slightly up from race-pace default, full quali engine mode
         drivetrain_efficiency=0.90,
         # Fallback fixed values (used only if active_aero is somehow off)
         CdA=0.70, ClA=1.60,
@@ -202,7 +206,7 @@ def car_2026(track_name: str = "Monza") -> CarParams:
                                     # rating, which mostly covers normal deployment
         override_taper_start_kmh=290.0,
         override_taper_end_kmh=355.0,
-        tyre_mu=1.72,               # narrower tyres, similar grip per regs intent
+        tyre_mu=1.85,               # narrower tyres, qualifying-spec softs
         rolling_resistance_coeff=0.014,
     )
 

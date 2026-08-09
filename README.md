@@ -35,35 +35,45 @@ factory automatically.
 
 ## Cross-track calibration
 
-Earlier versions used one fixed aero spec for every track. That's not how
-real F1 works — teams run a different wing level at every circuit (Monza
-minimum downforce, Silverstone/Spa considerably more) — and it showed: Monza
-and Silverstone tracked real lap times reasonably, but Spa (dominated by its
-long Kemmel Straight) came out unrealistically fast, landing close to real
-**pole** pace despite the model representing a heavy, full-fuel race car.
+Earlier versions used one fixed aero spec for every track, and separately,
+were calibrated against real *fastest-race-lap* times. Both turned out to
+be wrong in ways that compounded:
 
-Retuned against real fastest-race-lap times (2024/2025 GP results) so all
-three tracks land at a **consistent ~104% of real fastest-lap pace** — a
-defensible gap for a full-fuel, no-DRS single lap:
+1. One aero spec for every track isn't how real F1 works -- teams run a
+   different wing level at every circuit (Monza minimum downforce,
+   Silverstone/Spa considerably more).
+2. Comparing against fastest-race-lap while modeling a full-fuel
+   (110kg/90kg) car was inconsistent with what people actually compare
+   these sims against in practice -- real qualifying (pole) pace, which
+   runs on a near-empty tank (~15kg), qualifying-spec soft tyres, and full
+   engine mode.
 
-| Track | 2025 sim | Real fastest race lap | Ratio |
-|---|---|---|---|
-| Monza | 84.00s | 80.90s | 103.8% |
-| Silverstone | 92.88s | 89.34s | 104.0% |
-| Spa-Francorchamps | 108.87s | 104.70s | 104.0% |
+Retuned against real 2025/2026 GP **pole times** (2026 Antonelli poles at
+Silverstone/Spa; 2026 Monza is an estimate since that race hasn't happened
+yet this season -- see `car_2026()`'s docstring), on a qualifying-trim fuel
+load, landing within ~0.1s at every track:
 
-The 2026 car adds a consistent +2s on top of each of these (matching the
-real-world 2026-vs-2025 delta established from early-season data).
+| Track | 2025 sim | Real 2025 pole | 2026 sim | Real 2026 pole |
+|---|---|---|---|---|
+| Monza | 78.72s | 78.79s (Verstappen) | 82.35s | *not yet raced* (~82.3s est.) |
+| Silverstone | 84.97s | 84.89s (Verstappen) | 88.06s | 88.11s (Antonelli) |
+| Spa-Francorchamps | 100.53s | 100.56s (Antonelli) | 104.46s | 104.36s (Antonelli) |
 
-**One honest wrinkle:** Monza's tuned `ClA=3.20` is NOT a realistic downforce
-value — real Monza runs the *lowest* downforce of any track, the opposite of
-what that number implies. It's compensating for a side effect of
-`track_geometry.py`'s closure correction: Monza's corner arc lengths were
-extended (same radius, longer arc) so the drawn map forms a clean closed
-loop, and that alone cost several seconds of lap time by making the car
-spend longer at corner-capped speed. Retuning the geometry itself (shorter,
-more realistic arc lengths) instead of compensating via `ClA` is the more
-correct long-term fix — see "Known simplifications" below.
+**Important trade-off to know about:** because this now targets a single
+qualifying-spec hot lap (light fuel, peak tyre grip, full engine mode),
+`race_sim.py`'s full-race strategy simulations will come out faster than
+realistic full-race pace -- they reuse this same qualifying-tuned car for
+every lap of a stint, rather than a heavier race-trim car. Giving
+`race_sim.py` its own race-trim car spec (heavier fuel, slightly lower peak
+grip) instead of reusing the qualifying-tuned one is the natural next fix --
+noted as a roadmap item below.
+
+**Also still true:** Monza's tuned `ClA=3.60` is NOT a realistic downforce
+value -- real Monza runs the *lowest* downforce of any track, the opposite
+of what that number implies. It's compensating for a side effect of
+`track_geometry.py`'s closure correction (Monza's corner arc lengths were
+extended so the drawn map forms a clean closed loop, costing several
+seconds of lap time). See "Known simplifications" below.
 
 ## Setup
 
@@ -237,6 +247,13 @@ also hosts Streamlit apps for free — create a Space, choose the Streamlit SDK,
 and push the same files there instead (or in addition).
 
 ## Known simplifications (roadmap for improvement)
+
+- **Race strategy sims use qualifying-trim fuel/grip for every lap**
+  (see "Cross-track calibration" above) — `car_2025()`/`car_2026()` are
+  tuned to match real pole times on a light qualifying fuel load, but
+  `race_sim.py` reuses that same spec across a full race distance. A
+  dedicated race-trim car (heavier fuel, slightly lower peak tyre grip)
+  would make strategy-optimizer results closer to realistic full-race pace.
 
 - **Monza's tuned aero doesn't reflect real relative downforce levels**
   (see "Cross-track calibration" above) — it's compensating for the
