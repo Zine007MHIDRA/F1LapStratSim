@@ -182,9 +182,10 @@ with tab3:
 with tab4:
     st.subheader(f"{track_name} — top-down speed map")
     st.caption(
-        "Colored by simulated speed. The line shown is the model's implied "
-        "racing line (one path per corner radius assumption), not a true "
-        "track-width optimization — see 'About this model' in the sidebar."
+        "Colored by simulated speed, with arrows showing the direction of "
+        "travel. The line shown is the model's implied racing line (one "
+        "path per corner radius assumption), not a true track-width "
+        "optimization — see 'About this model' in the sidebar."
     )
 
     view_mode = st.radio("View", ["Static speed map", "Animated lap replay"], horizontal=True)

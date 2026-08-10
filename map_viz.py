@@ -39,6 +39,7 @@ def build_lap_map_data(segments, car, step: float = 5.0):
         "s": geo["s"][:n],
         "x": geo["x"][:n],
         "y": geo["y"][:n],
+        "heading": geo["heading"][:n],
         "v_kmh": lap["v_profile"][:n] * 3.6,
         "seg_idx": geo["seg_idx"][:n],
         "lap_time": lap["lap_time"],
@@ -46,10 +47,37 @@ def build_lap_map_data(segments, car, step: float = 5.0):
     }
 
 
+def _marker_angle_deg(heading_rad):
+    """Converts our math heading (radians, CCW from +x axis) to the
+    clockwise-from-upright rotation Plotly's marker.angle expects for a
+    'triangle-up' symbol (which points along +y / straight up by default).
+    heading=0 (pointing +x/right) -> marker_angle=90 (rotate the upward
+    triangle 90 deg clockwise so it points right). Verified against a few
+    known cases (0, 90, 180 deg) before shipping."""
+    return (90.0 - np.degrees(heading_rad)) % 360.0
+
+
+def _direction_arrow_trace(map_data, n_arrows: int = 8):
+    """A handful of small triangle markers along the static track, each
+    rotated to point the way the car actually drives -- answers 'which way
+    round this circuit do you go?' at a glance, independent of the replay."""
+    n = len(map_data["x"])
+    idx = np.linspace(0, n - 1, n_arrows, endpoint=False).astype(int)
+    angles = [_marker_angle_deg(map_data["heading"][i]) for i in idx]
+    return go.Scatter(
+        x=map_data["x"][idx], y=map_data["y"][idx],
+        mode="markers",
+        marker=dict(symbol="triangle-up", size=15, color="#444444",
+                    angle=angles, line=dict(width=1, color="white")),
+        showlegend=False, hoverinfo="skip",
+    )
+
+
 def build_static_map_figure(map_data, title="Track map", downsample_to: int = 500):
     """Speed-colored track outline (no animation) -- markers packed close
     together to read as a continuous colored line, common in real telemetry
-    tools' 'speed map' views."""
+    tools' 'speed map' views. Includes direction arrows showing which way
+    the track is driven."""
     n = len(map_data["x"])
     idx = np.linspace(0, n - 1, min(downsample_to, n)).astype(int)
 
@@ -72,6 +100,7 @@ def build_static_map_figure(map_data, title="Track map", downsample_to: int = 50
         hovertemplate="%{text}<extra></extra>",
         showlegend=False,
     ))
+    fig.add_trace(_direction_arrow_trace(map_data))
     fig.update_layout(
         title=title,
         xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
@@ -83,13 +112,15 @@ def build_static_map_figure(map_data, title="Track map", downsample_to: int = 50
 
 
 def build_animated_map_figure(map_data, title="Lap replay", n_frames: int = 150):
-    """Same speed-colored track, plus a car marker that animates around the
-    lap via Plotly's built-in play/pause frames -- runs entirely client-side
-    once loaded."""
+    """Same speed-colored track (plus direction arrows), and a car marker
+    (a rotated triangle pointing the way it's actually heading, not a plain
+    dot) that animates around the lap via Plotly's built-in play/pause
+    frames -- runs entirely client-side once loaded."""
     n = len(map_data["x"])
     static_idx = np.linspace(0, n - 1, min(500, n)).astype(int)
     frame_idx = np.linspace(0, n - 1, min(n_frames, n)).astype(int)
 
+    car_angle_0 = _marker_angle_deg(map_data["heading"][0])
     base_traces = [
         go.Scatter(x=map_data["x"][static_idx], y=map_data["y"][static_idx],
                     mode="lines", line=dict(color="lightgray", width=2),
@@ -100,17 +131,24 @@ def build_animated_map_figure(map_data, title="Lap replay", n_frames: int = 150)
                                 colorscale="Turbo", showscale=True,
                                 colorbar=dict(title="km/h", x=1.15)),
                     showlegend=False, hoverinfo="skip"),
+        _direction_arrow_trace(map_data),
+        # Car marker: a red triangle pointing along the direction of travel,
+        # with a small dark outline "cockpit" dot on top for visibility.
         go.Scatter(x=[map_data["x"][0]], y=[map_data["y"][0]],
-                    mode="markers", marker=dict(size=16, color="black", symbol="circle"),
+                    mode="markers",
+                    marker=dict(symbol="triangle-up", size=22, color="#E10600",
+                                angle=car_angle_0, line=dict(width=1.5, color="black")),
                     name="Car", showlegend=False),
     ]
 
     frames = []
     for fi in frame_idx:
         t_at_frame = map_data["lap_time"] * (map_data["s"][fi] / map_data["s"][-1])
+        car_angle = _marker_angle_deg(map_data["heading"][fi])
         frames.append(go.Frame(
-            data=[go.Scatter(x=[map_data["x"][fi]], y=[map_data["y"][fi]])],
-            traces=[2],
+            data=[go.Scatter(x=[map_data["x"][fi]], y=[map_data["y"][fi]],
+                              marker=dict(angle=car_angle))],
+            traces=[3],
             name=str(fi),
             layout=go.Layout(
                 annotations=[dict(
