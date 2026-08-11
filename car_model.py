@@ -73,6 +73,24 @@ class CarParams:
     tyre_mu: float = 1.75            # peak combined tyre friction coefficient (slicks, in-window)
     rolling_resistance_coeff: float = 0.015
 
+    # --- Load-sensitive grip + friction ellipse (adopted from cross-checking
+    # against a real-telemetry-calibrated reference implementation) ---
+    # Real tyres give diminishing grip returns as vertical load increases --
+    # mu_eff = tyre_mu * (N / (mass*G)) ** mu_load_sensitivity, with a
+    # negative exponent so effective mu falls as load (weight + downforce)
+    # rises above the car's static weight alone.
+    mu_load_sensitivity: float = -0.05
+    # Friction "ellipse" exponent for combining longitudinal + lateral grip
+    # demand: (Fx/F_max)^p + (Fy/F_max)^p <= 1. p=2.0 is a circle (our old
+    # model); real tyres are often better approximated by a slightly
+    # squarer ellipse, p ~= 1.5-1.8.
+    mu_ellipse_p: float = 1.6
+
+    # --- DRS (2025-era only; 2026 replaced DRS with active aero, see above) ---
+    drs_available: bool = False
+    drs_drag_mult: float = 0.75       # drag multiplier when DRS is open
+    drs_downforce_mult: float = 0.90  # downforce multiplier when DRS is open
+
     def aero_params(self, mode: str):
         """Returns (CdA, ClA) for the requested aero mode ('corner' or 'straight').
         Falls back to fixed CdA/ClA if active_aero is off."""
@@ -137,15 +155,16 @@ def car_2025(track_name: str = "Monza") -> CarParams:
     flagged as a roadmap item in the README.
     """
     presets = {
-        "Monza":             dict(CdA=0.90, ClA=3.60),
-        "Silverstone":       dict(CdA=0.90, ClA=2.60),
-        "Spa-Francorchamps": dict(CdA=0.90, ClA=1.25),
+        "Monza":             dict(CdA=0.90, ClA=3.09),
+        "Silverstone":       dict(CdA=0.90, ClA=2.53),
+        "Spa-Francorchamps": dict(CdA=0.90, ClA=1.12),
     }
     aero = presets.get(track_name, presets["Monza"])
     return CarParams(
         mass_empty=798.0, fuel_mass=15.0, fuel_burn_rate=0.30,
         engine_power=780_000.0, drivetrain_efficiency=0.90,
         CdA=aero["CdA"], ClA=aero["ClA"], active_aero=False, manual_override=False,
+        drs_available=True,
         tyre_mu=1.90, rolling_resistance_coeff=0.015,
     )
 
@@ -172,9 +191,9 @@ def car_2026(track_name: str = "Monza") -> CarParams:
     fast relative to Monza/Silverstone.
     """
     presets = {
-        "Monza":             dict(corner_ClA=2.32, straight_CdA=0.85),
-        "Silverstone":       dict(corner_ClA=1.90, straight_CdA=0.85),
-        "Spa-Francorchamps": dict(corner_ClA=0.70, straight_CdA=1.13),
+        "Monza":             dict(corner_ClA=2.60, straight_CdA=0.85),
+        "Silverstone":       dict(corner_ClA=2.10, straight_CdA=0.85),
+        "Spa-Francorchamps": dict(corner_ClA=0.70, straight_CdA=1.02),
     }
     aero = presets.get(track_name, presets["Monza"])
     return CarParams(
@@ -219,65 +238,114 @@ def downforce(v: float, ClA: float) -> float:
     return 0.5 * AIR_DENSITY * ClA * v ** 2
 
 
+def mu_effective(mu_base: float, N: float, mass: float, mu_load_sensitivity: float) -> float:
+    """Load-sensitive tyre friction coefficient: real tyres give diminishing
+    grip returns as vertical load (weight + downforce) increases above the
+    car's static weight. mu_load_sensitivity is negative, so mu_eff falls
+    below mu_base as N grows past mass*G."""
+    return mu_base * (N / (mass * G)) ** mu_load_sensitivity
+
+
+def _friction_ellipse_Fx(total_grip: float, Fy: float, p: float) -> float:
+    """Available longitudinal force given lateral force Fy already in use,
+    on a friction ellipse (Fx/F)^p + (Fy/F)^p <= 1 rather than a hard circle
+    (p=2). Real tyres are often better approximated by p ~= 1.5-1.8."""
+    p = max(p, 1.01)
+    return max(total_grip ** p - abs(Fy) ** p, 0.0) ** (1.0 / p)
+
+
 def max_corner_speed(radius: float, mass: float, car: CarParams) -> float:
     """
     Solve for the max speed sustainable through a corner of given radius.
     Always uses 'corner' (Z-mode, high downforce) aero when active_aero is on.
 
-    Physics: required lateral force = m*v^2/r
-             available lateral grip = mu * (m*g + downforce(v))
-    Setting them equal and solving for v^2 gives a closed form (downforce
-    itself depends on v^2, but it's linear in v^2 so this still solves directly):
+    With a constant mu this has a closed form (see git history), but
+    load-sensitive mu makes the equation nonlinear in v (mu_eff itself
+    depends on v through downforce), so this now uses damped fixed-point
+    iteration instead:
 
-        m*v^2/r = mu*m*g + mu*0.5*rho*ClA*v^2
-        v^2 * (m/r - mu*0.5*rho*ClA) = mu*m*g
-        v^2 = (mu*m*g) / (m/r - mu*0.5*rho*ClA)
+        v_new = sqrt( mu_eff(v) * N(v) * r / m ),  N(v) = m*g + downforce(v)
+
+    which converges in a handful of iterations for realistic parameters --
+    EXCEPT when downforce grows with v^2 fast enough to nearly match the
+    growth in required centripetal force (large radius + high ClA). That's
+    a real phenomenon (why some real corners are taken "flat out" at
+    increasing speed with no natural limit) but for a point-mass model
+    without a rev/gear/drag ceiling feeding into this specific equation, it
+    shows up as the iteration diverging rather than a sane clamp. Capped at
+    a generous 130 m/s (468 km/h) as a safety net -- if a real corner would
+    hit this cap, the true limiting factor is the straight-line physics
+    (power vs drag), not the corner formula, and max_traction_accel /
+    max_brake_decel will bind first regardless.
     """
     if np.isinf(radius):
         return np.inf
     _, ClA = car.aero_params("corner")
-    denom = (mass / radius) - car.tyre_mu * 0.5 * AIR_DENSITY * ClA
-    if denom <= 0:
-        denom = 1e-6
-    v_sq = (car.tyre_mu * mass * G) / denom
-    return np.sqrt(max(v_sq, 0.0))
+    r = max(float(radius), 5.0)
+    v_cap = 130.0  # m/s safety cap, see docstring
+
+    v = 50.0  # m/s initial guess
+    for _ in range(30):
+        N = mass * G + downforce(v, ClA)
+        mu_eff = mu_effective(car.tyre_mu, N, mass, car.mu_load_sensitivity)
+        v_new = np.sqrt(max(mu_eff * N * r / mass, 1e-6))
+        if v_new > v_cap:
+            return v_cap
+        if abs(v_new - v) < 1e-3:
+            break
+        v = 0.5 * (v + v_new)  # damping for stability
+    return float(min(v, v_cap))
 
 
-def max_traction_accel(v: float, mass: float, car: CarParams, lateral_frac: float = 0.0,
-                        aero_mode: str = "straight") -> float:
+def max_traction_accel(v: float, mass: float, car: CarParams, lateral_g: float = 0.0,
+                        aero_mode: str = "straight", drs: bool = False) -> float:
     """
     Max forward acceleration at speed v, accounting for:
       - engine power ceiling (P = F*v -> F = P/v, capped at low speed by a
         traction limit so we don't get infinite force at v=0)
       - Manual Override MGU-K boost (2026 only), tapering off at high speed
-      - tyre grip limit (friction circle: some grip budget may already be
-        used for cornering, lateral_frac in [0,1] of the grip circle used laterally)
+      - load-sensitive tyre grip on a friction ellipse (some grip budget
+        already used for cornering, expressed as lateral_g in units of g --
+        e.g. 3.0 means the corner is currently demanding 3g of lateral force)
+      - DRS (2025-era only): reduces drag and downforce when open and the
+        car's own drs_available flag is set
       - drag opposing forward motion (uses the aero mode for this part of track)
     """
     CdA, ClA = car.aero_params(aero_mode)
+    if drs and car.drs_available:
+        CdA *= car.drs_drag_mult
+        ClA *= car.drs_downforce_mult
     v_eff = max(v, 5.0)  # avoid singularity at very low speed
 
     total_power = car.engine_power + car.override_power_at(v)
     engine_force = min(total_power * car.drivetrain_efficiency / v_eff,
                         mass * G * car.tyre_mu * 1.3)  # traction-limited launch cap
 
-    # Grip circle: total available grip this instant
-    total_grip = car.tyre_mu * (mass * G + downforce(v, ClA))
-    lateral_used = lateral_frac * total_grip
-    remaining_long_grip = np.sqrt(max(total_grip ** 2 - lateral_used ** 2, 0.0))
+    N = mass * G + downforce(v, ClA)
+    mu_eff = mu_effective(car.tyre_mu, N, mass, car.mu_load_sensitivity)
+    total_grip = mu_eff * N
+    Fy = min(max(lateral_g, 0.0) * G * mass, total_grip - 1e-6)
+    remaining_long_grip = _friction_ellipse_Fx(total_grip, Fy, car.mu_ellipse_p)
 
     drive_force = min(engine_force, remaining_long_grip)
     net_force = drive_force - drag_force(v, CdA) - car.rolling_resistance_coeff * mass * G
     return net_force / mass
 
 
-def max_brake_decel(v: float, mass: float, car: CarParams, aero_mode: str = "corner") -> float:
-    """Max deceleration under braking: tyre grip limit + drag (which helps braking).
-    Defaults to 'corner' (Z-mode) aero since braking zones are typically where
-    the car has already switched to high-downforce mode ahead of the corner."""
+def max_brake_decel(v: float, mass: float, car: CarParams, lateral_g: float = 0.0,
+                     aero_mode: str = "corner") -> float:
+    """Max deceleration under braking: load-sensitive tyre grip (on the same
+    friction ellipse as acceleration) plus drag (which helps braking). DRS is
+    always assumed closed while braking. Defaults to 'corner' (Z-mode) aero
+    since braking zones are typically where the car has already switched to
+    high-downforce mode ahead of the corner."""
     CdA, ClA = car.aero_params(aero_mode)
-    total_grip = car.tyre_mu * (mass * G + downforce(v, ClA))
-    brake_force = total_grip + drag_force(v, CdA)
+    N = mass * G + downforce(v, ClA)
+    mu_eff = mu_effective(car.tyre_mu, N, mass, car.mu_load_sensitivity)
+    total_grip = mu_eff * N
+    Fy = min(max(lateral_g, 0.0) * G * mass, total_grip - 1e-6)
+    Fx_tyre = _friction_ellipse_Fx(total_grip, Fy, car.mu_ellipse_p)
+    brake_force = Fx_tyre + drag_force(v, CdA)
     return brake_force / mass
 
 

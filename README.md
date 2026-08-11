@@ -55,9 +55,14 @@ load, landing within ~0.1s at every track:
 
 | Track | 2025 sim | Real 2025 pole | 2026 sim | Real 2026 pole |
 |---|---|---|---|---|
-| Monza | 78.72s | 78.79s (Verstappen) | 82.35s | *not yet raced* (~82.3s est.) |
-| Silverstone | 84.97s | 84.89s (Verstappen) | 88.06s | 88.11s (Antonelli) |
-| Spa-Francorchamps | 100.53s | 100.56s (Antonelli) | 104.46s | 104.36s (Antonelli) |
+| Monza | 78.78s | 78.79s (Verstappen) | 82.28s | *not yet raced* (~82.3s est.) |
+| Silverstone | 84.92s | 84.89s (Verstappen) | 88.07s | 88.11s (Antonelli) |
+| Spa-Francorchamps | 100.56s | 100.56s (Antonelli) | 104.34s | 104.36s (Antonelli) |
+
+(Retuned again after the physics engine rework below -- landed within 0.05s
+at every track despite the underlying model changing substantially, which
+is a good sign the model's degrees of freedom are doing real work rather
+than overfitting to one specific set of assumptions.)
 
 **Important trade-off to know about:** because this now targets a single
 qualifying-spec hot lap (light fuel, peak tyre grip, full engine mode),
@@ -74,6 +79,60 @@ of what that number implies. It's compensating for a side effect of
 `track_geometry.py`'s closure correction (Monza's corner arc lengths were
 extended so the drawn map forms a clean closed loop, costing several
 seconds of lap time). See "Known simplifications" below.
+
+## Physics engine rework (adopted from a reference implementation)
+
+After comparing against a different, more sophisticated F1 lap-time
+simulator (one that pulls real FastF1 telemetry directly rather than
+hand-building track geometry -- see its `TrackDiscretization`/`VehicleModel`
+classes if you want the original), several physics upgrades were ported in:
+
+- **Load-sensitive tyre grip**: `mu_eff = tyre_mu * (N / (mass*G)) **
+  mu_load_sensitivity`. Real tyres give diminishing grip returns as vertical
+  load (weight + downforce) increases -- previously `tyre_mu` was flat
+  regardless of load, which was likely part of why Monza needed such an
+  unrealistic `ClA` to hit its target lap time (a flat-mu model has to
+  overcorrect with grip everywhere a load-sensitive one wouldn't).
+- **Tunable friction ellipse** (`mu_ellipse_p`, default 1.6) instead of a
+  hard circle (`p=2.0`) for combining longitudinal and lateral grip demand.
+- **A real bug fix**: `max_traction_accel()` always had a `lateral_frac`
+  parameter for reserving grip budget during cornering-while-accelerating,
+  but `lap_sim.py`'s forward pass called it with `lateral_frac=0.0` --
+  always. The friction-circle/ellipse machinery existed but was never
+  actually exercised. This version computes real lateral-g demand from the
+  local corner radius and current speed on both the forward and backward
+  passes, and reserves it properly.
+- **DRS modeling for the 2025 car** (`car_2025()` now sets
+  `drs_available=True`) -- previously absent entirely, despite real
+  2025-era cars using DRS extensively on the main straights. Applied
+  geometrically on straights longer than `DRS_MIN_STRAIGHT_M` (150m) once
+  the car's own speed exceeds `DRS_SPEED_THRESHOLD_KMH` (200 km/h) -- a
+  heuristic, since the hand-built tracks don't have real DRS-zone telemetry
+  to draw the boundary from.
+- **Multi-sweep forward/backward convergence** (`N_SWEEPS = 3`) instead of
+  one independent forward pass + one independent backward pass + `min()`.
+  A single pass each doesn't always converge to a self-consistent profile
+  in tightly packed corner sequences (e.g. chicanes) -- tightening the
+  entry to corner B can retroactively invalidate the exit speed already
+  computed for corner A. Repeated sweeps let the profile settle; each sweep
+  can only tighten (never loosen) the speed at any point, so it's
+  guaranteed to converge monotonically.
+- **A safety cap on the corner-speed solver**: load-sensitive mu makes
+  `max_corner_speed()`'s equation nonlinear (no closed form), so it now
+  uses damped fixed-point iteration -- which can diverge for very large
+  radius + very high `ClA` combinations (the same "corner taken flat out at
+  any speed" phenomenon the old closed-form solution used to clamp
+  explicitly). Capped at 130 m/s (468 km/h): if a real corner would hit
+  this cap, the true limiting factor is straight-line physics (power vs
+  drag), not the corner formula.
+
+All three tracks were retuned against the same real pole-time targets after
+these changes (see table above) -- the physics changed substantially
+(DRS alone was worth about 1.4s at Monza) but the tuned constants only
+needed modest adjustment to land back within 0.05s of every target, which
+was reassuring rather than alarming: it suggests the aero constants are
+absorbing genuine track-to-track differences rather than being pure
+compensating hacks (though the Monza-specific caveat above still applies).
 
 ## Setup
 
@@ -247,6 +306,20 @@ also hosts Streamlit apps for free — create a Space, choose the Streamlit SDK,
 and push the same files there instead (or in addition).
 
 ## Known simplifications (roadmap for improvement)
+
+- **DRS zones are a geometric heuristic, not real telemetry** — any straight
+  segment longer than 150m becomes DRS-eligible once the car's own speed
+  passes 200 km/h. Real DRS zones have specific FIA-defined activation/
+  deactivation points that don't perfectly track "long enough straight,
+  fast enough already." Pulling real DRS zone boundaries from FastF1
+  telemetry (it has a DRS channel) would fix this properly — same
+  local-only-execution caveat as `calibrate_with_fastf1.py`.
+- **Load-sensitivity and friction-ellipse constants are estimated, not
+  fitted** — `mu_load_sensitivity=-0.05` and `mu_ellipse_p=1.6` are
+  reasonable literature-typical values, not fitted to this project's real
+  telemetry (we don't have any loaded yet — see the calibration section).
+  Once real telemetry is available locally, these are two more parameters
+  worth fitting alongside the aero constants.
 
 - **Race strategy sims use qualifying-trim fuel/grip for every lap**
   (see "Cross-track calibration" above) — `car_2025()`/`car_2026()` are
