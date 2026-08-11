@@ -91,6 +91,16 @@ class CarParams:
     drs_drag_mult: float = 0.75       # drag multiplier when DRS is open
     drs_downforce_mult: float = 0.90  # downforce multiplier when DRS is open
 
+    # --- Gear-limited top speed ---
+    # Real F1 cars are geared per track: teams pick a top-gear ratio so the
+    # engine hits its rev limiter at a sane speed for that circuit's longest
+    # straight, rather than accelerating indefinitely wherever power exceeds
+    # drag. Without this, a long enough straight (Spa's Kemmel Straight,
+    # 1.8km) combined with DRS-reduced drag lets the point-mass model climb
+    # to unrealistic speeds (400+ km/h) that no real F1 car reaches. Set to
+    # None to disable (no cap).
+    top_speed_kmh: Optional[float] = None
+
     def aero_params(self, mode: str):
         """Returns (CdA, ClA) for the requested aero mode ('corner' or 'straight').
         Falls back to fixed CdA/ClA if active_aero is off."""
@@ -154,17 +164,23 @@ def car_2025(track_name: str = "Monza") -> CarParams:
     instead of reusing the qualifying-tuned spec for both purposes --
     flagged as a roadmap item in the README.
     """
+    # top_speed_kmh: real gear-limited terminal speeds (with DRS), not
+    # arbitrary tuning knobs -- Monza/Silverstone/Spa top speeds in recent
+    # seasons cluster in these ranges. Spa's real top speed is lower than
+    # its huge Kemmel Straight might suggest because the straight is
+    # significantly uphill (not modeled here -- see README's elevation
+    # caveat), so its real-world cap partly stands in for that missing effect.
     presets = {
-        "Monza":             dict(CdA=0.90, ClA=3.09),
-        "Silverstone":       dict(CdA=0.90, ClA=2.53),
-        "Spa-Francorchamps": dict(CdA=0.90, ClA=1.12),
+        "Monza":             dict(CdA=0.80, ClA=3.20, top_speed_kmh=372.0),
+        "Silverstone":       dict(CdA=0.65, ClA=2.65, top_speed_kmh=348.0),
+        "Spa-Francorchamps": dict(CdA=0.55, ClA=1.30, top_speed_kmh=345.0),
     }
     aero = presets.get(track_name, presets["Monza"])
     return CarParams(
         mass_empty=798.0, fuel_mass=15.0, fuel_burn_rate=0.30,
         engine_power=780_000.0, drivetrain_efficiency=0.90,
         CdA=aero["CdA"], ClA=aero["ClA"], active_aero=False, manual_override=False,
-        drs_available=True,
+        drs_available=True, top_speed_kmh=aero["top_speed_kmh"],
         tyre_mu=1.90, rolling_resistance_coeff=0.015,
     )
 
@@ -191,9 +207,9 @@ def car_2026(track_name: str = "Monza") -> CarParams:
     fast relative to Monza/Silverstone.
     """
     presets = {
-        "Monza":             dict(corner_ClA=2.60, straight_CdA=0.85),
-        "Silverstone":       dict(corner_ClA=2.10, straight_CdA=0.85),
-        "Spa-Francorchamps": dict(corner_ClA=0.70, straight_CdA=1.02),
+        "Monza":             dict(corner_ClA=2.44, straight_CdA=0.65, top_speed_kmh=368.0),
+        "Silverstone":       dict(corner_ClA=2.07, straight_CdA=0.55, top_speed_kmh=344.0),
+        "Spa-Francorchamps": dict(corner_ClA=0.62, straight_CdA=0.55, top_speed_kmh=340.0),
     }
     aero = presets.get(track_name, presets["Monza"])
     return CarParams(
@@ -227,6 +243,7 @@ def car_2026(track_name: str = "Monza") -> CarParams:
         override_taper_end_kmh=355.0,
         tyre_mu=1.85,               # narrower tyres, qualifying-spec softs
         rolling_resistance_coeff=0.014,
+        top_speed_kmh=aero["top_speed_kmh"],
     )
 
 
@@ -309,6 +326,9 @@ def max_traction_accel(v: float, mass: float, car: CarParams, lateral_g: float =
         e.g. 3.0 means the corner is currently demanding 3g of lateral force)
       - DRS (2025-era only): reduces drag and downforce when open and the
         car's own drs_available flag is set
+      - gear-limited top speed (rev limiter): once v reaches car.top_speed_kmh,
+        engine force is capped to exactly balance drag, holding a steady
+        cruise speed instead of continuing to accelerate
       - drag opposing forward motion (uses the aero mode for this part of track)
     """
     CdA, ClA = car.aero_params(aero_mode)
@@ -317,9 +337,15 @@ def max_traction_accel(v: float, mass: float, car: CarParams, lateral_g: float =
         ClA *= car.drs_downforce_mult
     v_eff = max(v, 5.0)  # avoid singularity at very low speed
 
-    total_power = car.engine_power + car.override_power_at(v)
-    engine_force = min(total_power * car.drivetrain_efficiency / v_eff,
-                        mass * G * car.tyre_mu * 1.3)  # traction-limited launch cap
+    if car.top_speed_kmh is not None and v * 3.6 >= car.top_speed_kmh:
+        # Rev limiter reached: exactly enough force to hold steady speed,
+        # net acceleration = 0 (not a hard wall -- the car just stops
+        # gaining speed here, same as a real car bouncing off the limiter).
+        engine_force = drag_force(v, CdA) + car.rolling_resistance_coeff * mass * G
+    else:
+        total_power = car.engine_power + car.override_power_at(v)
+        engine_force = min(total_power * car.drivetrain_efficiency / v_eff,
+                            mass * G * car.tyre_mu * 1.3)  # traction-limited launch cap
 
     N = mass * G + downforce(v, ClA)
     mu_eff = mu_effective(car.tyre_mu, N, mass, car.mu_load_sensitivity)
