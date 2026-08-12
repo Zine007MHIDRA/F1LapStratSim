@@ -4,9 +4,6 @@ A point-mass vehicle dynamics simulator for F1 lap times, tyre degradation,
 and pit strategy optimization — built for Monza, structured so any track
 can be added.
 
-## Link to the app
-**`https://u49dslx5aub9xmappx5y8ss.streamlit.app/`**
-
 ## What's in here
 
 | File | What it does |
@@ -21,6 +18,7 @@ can be added.
 | `map_viz.py` | Builds the speed-colored top-down track map + animated lap replay |
 | `main.py` | **Interactive CLI menu — run this** |
 | `app.py` | **Interactive web app (Streamlit) — run this for the browser version** |
+| `theme.py` | Visual identity — dark timing-tower theme, CSS injection, readout cards |
 | `calibrate_with_fastf1.py` | Compares the sim against real F1 telemetry (run locally, needs internet) |
 
 ## Car generations supported
@@ -56,16 +54,17 @@ Silverstone/Spa; 2026 Monza is an estimate since that race hasn't happened
 yet this season -- see `car_2026()`'s docstring), on a qualifying-trim fuel
 load, landing within ~0.1s at every track:
 
-| Track | 2025 sim | Real 2025 pole | 2026 sim | Real 2026 pole |
-|---|---|---|---|---|
-| Monza | 78.78s | 78.79s (Verstappen) | 82.28s | *not yet raced* (~82.3s est.) |
-| Silverstone | 84.92s | 84.89s (Verstappen) | 88.07s | 88.11s (Antonelli) |
-| Spa-Francorchamps | 100.56s | 100.56s (Antonelli) | 104.34s | 104.36s (Antonelli) |
+| Track | 2025 sim | Real 2025 pole | 2026 sim | Real 2026 pole | Top speed (2025/2026) |
+|---|---|---|---|---|---|
+| Monza | 78.74s | 78.79s (Verstappen) | 82.21s | *not yet raced* (~82.3s est.) | 372 / 368 km/h |
+| Silverstone | 84.89s | 84.89s (Verstappen) | 88.11s | 88.11s (Antonelli) | 348 / 344 km/h |
+| Spa-Francorchamps | 100.58s | 100.56s (Antonelli) | 104.39s | 104.36s (Antonelli) | 345 / 340 km/h |
 
-(Retuned again after the physics engine rework below -- landed within 0.05s
-at every track despite the underlying model changing substantially, which
-is a good sign the model's degrees of freedom are doing real work rather
-than overfitting to one specific set of assumptions.)
+(Retuned twice after the physics engine rework below -- once for the rework
+itself, once more after adding a gear-limited top-speed cap that the rework
+had exposed a need for. Landed within 0.09s of every pole time both times,
+with top speeds now in a realistic range too -- see "Gear-limited top
+speed" below for why that needed its own fix.)
 
 **Important trade-off to know about:** because this now targets a single
 qualifying-spec hot lap (light fuel, peak tyre grip, full engine mode),
@@ -128,6 +127,20 @@ classes if you want the original), several physics upgrades were ported in:
   explicitly). Capped at 130 m/s (468 km/h): if a real corner would hit
   this cap, the true limiting factor is straight-line physics (power vs
   drag), not the corner formula.
+- **Gear-limited top speed** (`top_speed_kmh` on `CarParams`): adding DRS
+  above without this produced genuinely unrealistic top speeds -- 417 km/h
+  on Spa's Kemmel Straight, caught after the fact by comparing sim output
+  against real top speeds rather than just lap times. Real F1 cars are
+  geared per track (teams pick a top-gear ratio so the engine hits its rev
+  limiter at a sane speed for that circuit's longest straight) rather than
+  accelerating indefinitely wherever power exceeds drag. Modeled as a soft
+  cap: the car accelerates normally up to `top_speed_kmh`, then engine
+  force is capped to exactly balance drag, holding a steady cruise instead
+  of a hard discontinuity. Set per-track from real reference top speeds
+  (Monza 372/368 km/h for 2025/2026, Silverstone 348/344, Spa 345/340 --
+  Spa's real top speed being lower than its long straight might suggest is
+  partly because the Kemmel Straight is significantly uphill, an elevation
+  effect this model still doesn't capture -- see "Known simplifications").
 
 All three tracks were retuned against the same real pole-time targets after
 these changes (see table above) -- the physics changed substantially
@@ -163,7 +176,9 @@ Requires Python 3.9+.
 5. Exit
 ```
 
-- **Option 1** gives you a lap time and a speed-vs-distance plot.
+- **Option 1** gives you a lap time and a speed/throttle/brake trace plot
+  (throttle and brake are derived from the speed profile's implied
+  acceleration, not independently modeled driver inputs).
 - **Option 2** lets you manually define a strategy, e.g. `medium(25) -> hard(28)`,
   and see the total race time with tyre degradation applied lap by lap.
 - **Option 3** brute-force searches strategies (1-stop and optionally 2-stop)
@@ -259,3 +274,118 @@ standard surveying "closing error" adjustment).
 4. That's it — `main.py` and `app.py` both pick up new tracks automatically
    from the `TRACKS` dict.
 
+## Running the web app locally
+
+```bash
+streamlit run app.py
+```
+
+Opens at `http://localhost:8501` — sidebar picks the car generation, and
+three tabs cover single-lap simulation, custom strategy testing, and the
+strategy optimizer, all backed by the same physics engine as the CLI.
+
+## Deploying for free (Streamlit Community Cloud)
+
+This gets you a public URL (e.g. `yourname-f1sim.streamlit.app`) at zero
+cost — no credit card, no server to manage. Steps:
+
+1. **Push this project to GitHub.**
+   ```bash
+   git init
+   git add .
+   git commit -m "F1 lap + strategy simulator"
+   git branch -M main
+   git remote add origin https://github.com/<your-username>/f1sim.git
+   git push -u origin main
+   ```
+   (Create the empty repo on GitHub first if you haven't — github.com/new)
+
+2. **Go to [share.streamlit.io](https://share.streamlit.io)** and sign in
+   with your GitHub account (free).
+
+3. Click **"New app"**, pick your `f1sim` repo, branch `main`, and set the
+   main file path to `app.py`.
+
+4. Click **Deploy**. First build takes a minute or two (installs
+   `requirements.txt`); after that it's live at a public URL you can share.
+
+5. **Updating later:** every time you `git push` to `main`, the deployed app
+   auto-redeploys. No redeployment step needed.
+
+**Free tier limits to know about:** Streamlit Community Cloud apps sleep
+after a period of inactivity and wake up on the next visit (a few seconds'
+delay), and there's a modest RAM ceiling (~1GB) — fine for this project, but
+if you ever add heavier simulations (more tracks, wider strategy search
+grids), keep the `step` slider defaults conservative in `app.py` so a single
+optimizer run doesn't time out or exceed memory on the free tier.
+
+**Alternative free host:** [Hugging Face Spaces](https://huggingface.co/spaces)
+also hosts Streamlit apps for free — create a Space, choose the Streamlit SDK,
+and push the same files there instead (or in addition).
+
+## Known simplifications (roadmap for improvement)
+
+- **Throttle/brake traces are derived, not independently modeled** — after
+  the speed profile converges, throttle%/brake% at each point come from
+  comparing the actual implied acceleration against the theoretical max
+  available there (same physics that built the speed profile in the first
+  place). This means they're internally consistent with the speed trace by
+  construction, but they're not modeling driver behavior/inputs
+  independently — a real driver's throttle trace has habits, hesitations,
+  and imperfections a "theoretically optimal" derived trace won't show. A
+  cruise-throttle estimate (partial throttle to balance drag at a constant
+  cornering speed) fills in points where accel is ~0, rather than showing 0%.
+- **DRS zones are a geometric heuristic, not real telemetry** — any straight
+  segment longer than 150m becomes DRS-eligible once the car's own speed
+  passes 200 km/h. Real DRS zones have specific FIA-defined activation/
+  deactivation points that don't perfectly track "long enough straight,
+  fast enough already." Pulling real DRS zone boundaries from FastF1
+  telemetry (it has a DRS channel) would fix this properly — same
+  local-only-execution caveat as `calibrate_with_fastf1.py`.
+- **Load-sensitivity and friction-ellipse constants are estimated, not
+  fitted** — `mu_load_sensitivity=-0.05` and `mu_ellipse_p=1.6` are
+  reasonable literature-typical values, not fitted to this project's real
+  telemetry (we don't have any loaded yet — see the calibration section).
+  Once real telemetry is available locally, these are two more parameters
+  worth fitting alongside the aero constants.
+
+- **Race strategy sims use qualifying-trim fuel/grip for every lap**
+  (see "Cross-track calibration" above) — `car_2025()`/`car_2026()` are
+  tuned to match real pole times on a light qualifying fuel load, but
+  `race_sim.py` reuses that same spec across a full race distance. A
+  dedicated race-trim car (heavier fuel, slightly lower peak tyre grip)
+  would make strategy-optimizer results closer to realistic full-race pace.
+
+- **Monza's tuned aero doesn't reflect real relative downforce levels**
+  (see "Cross-track calibration" above) — it's compensating for the
+  track-map closure correction's effect on corner arc lengths, not modeling
+  a real wing choice. Reworking `track_model.py`'s Monza corner lengths to
+  be shorter/more realistic (while still closing the geometry loop) and
+  re-tuning `ClA` down afterward would fix this properly.
+- No weight transfer / suspension model (point-mass only)
+- No wet-weather tyre compounds or track evolution
+- No traffic / overtaking / safety car modeling in the strategy optimizer
+- Pit stop loss is a fixed constant (`PIT_STOP_LOSS_S` in `race_sim.py`),
+  not track-specific pit lane geometry
+- Tyre degradation curves are illustrative, not fitted to real stint data yet
+  (FastF1 gives you real lap times + tyre life per stint — a good next
+  project is fitting `deg_rate_per_lap` per compound from real races)
+- **2026 "clipping" not modeled**: real 2026 cars show the MGU-K battery
+  depleting mid-straight, so top speed actually *drops* before the braking
+  zone on long straights instead of monotonically rising. The current model
+  only tapers override power by speed, not by cumulative energy deployed —
+  adding a per-lap energy budget (deployed Joules vs available battery
+  capacity) is the natural next step for 2026 accuracy
+- **Track maps are schematic, not survey-accurate** (see "Track map & lap
+  replay" above) — corner angles are hand-tuned to close the loop cleanly,
+  not measured from real track geometry
+- **No true racing-line optimization** — the drawn/animated path is the
+  single line implied by each corner's assumed radius, not a solve across
+  the track's actual width. Needs track-width boundary data + a
+  curvature-minimization algorithm (e.g. minimum-curvature or optimal
+  control lap-time solvers used in real race engineering) to add properly
+- **No elevation modeling** — Spa's Eau Rouge/Raidillon compression (a
+  genuinely famous ~40m uphill climb that loads the tyres extra hard at the
+  bottom) isn't captured; the physics is flat 2D. Adding it means giving
+  `car_model.py` a slope-dependent gravity component along the track
+  direction at each point

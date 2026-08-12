@@ -66,14 +66,26 @@ def option_single_lap(car):
     print(f"Top speed: {result['v_profile'].max()*3.6:.1f} km/h")
     print(f"Average speed: {(total_length(TRACK)/t)*3.6:.1f} km/h")
 
-    show = input("Show speed trace plot? (y/n): ").strip().lower()
+    show = input("Show speed/throttle/brake trace plot? (y/n): ").strip().lower()
     if show == "y":
-        plt.figure(figsize=(11, 4))
-        plt.plot(result["s"], result["v_profile"] * 3.6)
-        plt.xlabel("Distance around lap (m)")
-        plt.ylabel("Speed (km/h)")
-        plt.title(f"{TRACK_NAME} — simulated speed trace ({format_time(t)})")
-        plt.grid(alpha=0.3)
+        fig, axes = plt.subplots(3, 1, figsize=(11, 8), sharex=True,
+                                  gridspec_kw={"height_ratios": [2, 1, 1]})
+        axes[0].plot(result["s"], result["v_profile"] * 3.6, color="tab:blue")
+        axes[0].set_ylabel("Speed (km/h)")
+        axes[0].set_title(f"{TRACK_NAME} — simulated lap ({format_time(t)})")
+        axes[0].grid(alpha=0.3)
+
+        axes[1].fill_between(result["s"], result["throttle_pct"], color="tab:green", alpha=0.6)
+        axes[1].set_ylabel("Throttle (%)")
+        axes[1].set_ylim(0, 105)
+        axes[1].grid(alpha=0.3)
+
+        axes[2].fill_between(result["s"], result["brake_pct"], color="tab:red", alpha=0.6)
+        axes[2].set_ylabel("Brake (%)")
+        axes[2].set_ylim(0, 105)
+        axes[2].set_xlabel("Distance around lap (m)")
+        axes[2].grid(alpha=0.3)
+
         plt.tight_layout()
         outpath = "speed_trace.png"
         plt.savefig(outpath, dpi=130)

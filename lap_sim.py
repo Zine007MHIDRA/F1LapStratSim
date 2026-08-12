@@ -45,7 +45,7 @@ this project's hand-built tracks don't have.
 """
 
 import numpy as np
-from car_model import CarParams, G, max_corner_speed, max_traction_accel, max_brake_decel
+from car_model import CarParams, G, max_corner_speed, max_traction_accel, max_brake_decel, drag_force
 from track_model import Segment, build_distance_axis, total_length
 
 DRS_MIN_STRAIGHT_M = 150.0
@@ -70,6 +70,66 @@ def _lateral_g(v: float, radius: float) -> float:
     if not np.isfinite(radius) or radius <= 0:
         return 0.0
     return min((v ** 2) / (radius * G), MAX_LATERAL_G)
+
+
+def _pedal_trace(s, v_profile, radius, mass_arr, aero_mode, drs_eligible, eff_car):
+    """
+    Derives throttle%/brake% (0-100, like real telemetry channels) from the
+    final converged v_profile, for display alongside the speed trace.
+
+    At each point, computes the actual acceleration implied by the speed
+    profile (a = (v_i^2 - v_i-1^2) / 2*ds), then normalizes it against the
+    theoretical max accel/brake available at that point (same physics used
+    to build the profile) to get a 0-100% throttle or brake reading.
+
+    Points where the car is neither accelerating nor braking (e.g. holding
+    a constant cornering speed at v_cap) get a "cruise throttle" — the
+    partial throttle needed to exactly balance drag at that speed — matching
+    how real telemetry shows partial throttle through fast, flat-out corners
+    rather than 0%.
+    """
+    n = len(v_profile)
+    throttle_pct = np.zeros(n)
+    brake_pct = np.zeros(n)
+    accel_mps2 = np.zeros(n)
+
+    for i in range(1, n):
+        ds = s[i] - s[i - 1]
+        if ds <= 0:
+            continue
+        v_prev = v_profile[i - 1]
+        v_cur = v_profile[i]
+        a_actual = (v_cur ** 2 - v_prev ** 2) / (2 * ds)
+        accel_mps2[i] = a_actual
+
+        lat_g = _lateral_g(v_prev, radius[i])
+        drs_now = bool(drs_eligible[i]) and (v_prev * 3.6 > DRS_SPEED_THRESHOLD_KMH)
+
+        if a_actual > 0.05:
+            a_max = max_traction_accel(v_prev, mass_arr[i], eff_car, lateral_g=lat_g,
+                                        aero_mode=aero_mode[i], drs=drs_now)
+            throttle_pct[i] = float(np.clip(a_actual / max(a_max, 1e-6) * 100, 0, 100))
+        elif a_actual < -0.05:
+            a_brake = max_brake_decel(v_prev, mass_arr[i], eff_car, lateral_g=lat_g, aero_mode=aero_mode[i])
+            brake_pct[i] = float(np.clip(abs(a_actual) / max(a_brake, 1e-6) * 100, 0, 100))
+        else:
+            # Cruising at constant speed (e.g. holding the corner cap): the
+            # partial throttle that exactly balances drag at this speed.
+            CdA, _ = eff_car.aero_params(aero_mode[i])
+            drag_and_rolling = drag_force(v_prev, CdA) + eff_car.rolling_resistance_coeff * mass_arr[i] * G
+            total_power = eff_car.engine_power + eff_car.override_power_at(v_prev)
+            v_eff = max(v_prev, 5.0)
+            engine_force_max = min(total_power * eff_car.drivetrain_efficiency / v_eff,
+                                    mass_arr[i] * G * eff_car.tyre_mu * 1.3)
+            throttle_pct[i] = float(np.clip(drag_and_rolling / max(engine_force_max, 1e-6) * 100, 0, 100))
+
+    # first point: mirror the second so there's no artificial zero at s=0
+    if n > 1:
+        throttle_pct[0] = throttle_pct[1]
+        brake_pct[0] = brake_pct[1]
+        accel_mps2[0] = accel_mps2[1]
+
+    return throttle_pct, brake_pct, accel_mps2
 
 
 def _forward_pass(v_ceiling, s, radius, mass_arr, aero_mode, drs_eligible, eff_car):
@@ -103,7 +163,7 @@ def _backward_pass(v_ceiling, s, radius, mass_arr, aero_mode, eff_car):
 
 def simulate_lap(segments, car: CarParams, step: float = 2.0,
                   race_distance_so_far_m: float = 0.0, grip_multiplier: float = 1.0,
-                  n_sweeps: int = N_SWEEPS):
+                  n_sweeps: int = N_SWEEPS, compute_pedals: bool = True):
     """
     Returns dict with:
       s          - distance array (m)
@@ -111,6 +171,10 @@ def simulate_lap(segments, car: CarParams, step: float = 2.0,
       v_corner_cap - corner speed limit at each point (m/s, inf on straights)
       lap_time   - total lap time (s)
       seg_idx    - segment index per point (for plotting/labels)
+      throttle_pct, brake_pct, accel_mps2 - only populated if compute_pedals=True
+        (this is a real extra O(n) physics pass, worth skipping for race/
+        strategy sims that run simulate_lap hundreds of times and never look
+        at pedal data — see race_sim.py)
 
     grip_multiplier: scales tyre_mu (used later for tyre degradation —
     a worn tyre has grip_multiplier < 1.0)
@@ -151,6 +215,14 @@ def simulate_lap(segments, car: CarParams, step: float = 2.0,
     dt_arr = ds_arr / v_profile
     lap_time = np.sum(dt_arr)
 
+    # 4. Derive throttle/brake traces from the final converged speed profile
+    #    (skippable — see compute_pedals docstring note above)
+    if compute_pedals:
+        throttle_pct, brake_pct, accel_mps2 = _pedal_trace(
+            s, v_profile, radius, mass_arr, aero_mode, drs_eligible, eff_car)
+    else:
+        throttle_pct = brake_pct = accel_mps2 = None
+
     return {
         "s": s,
         "v_profile": v_profile,
@@ -158,6 +230,9 @@ def simulate_lap(segments, car: CarParams, step: float = 2.0,
         "lap_time": lap_time,
         "seg_idx": seg_idx,
         "dt_arr": dt_arr,
+        "throttle_pct": throttle_pct,
+        "brake_pct": brake_pct,
+        "accel_mps2": accel_mps2,
     }
 
 

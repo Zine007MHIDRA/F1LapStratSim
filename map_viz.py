@@ -23,6 +23,7 @@ import plotly.graph_objects as go
 
 from track_geometry import compute_track_xy
 from lap_sim import simulate_lap
+from theme import COLORS, FONT_MONO, FONT_DISPLAY
 
 
 def build_lap_map_data(segments, car, step: float = 5.0):
@@ -67,8 +68,8 @@ def _direction_arrow_trace(map_data, n_arrows: int = 8):
     return go.Scatter(
         x=map_data["x"][idx], y=map_data["y"][idx],
         mode="markers",
-        marker=dict(symbol="triangle-up", size=15, color="#444444",
-                    angle=angles, line=dict(width=1, color="white")),
+        marker=dict(symbol="triangle-up", size=15, color=COLORS["text_dim"],
+                    angle=angles, line=dict(width=1, color=COLORS["bg_panel"])),
         showlegend=False, hoverinfo="skip",
     )
 
@@ -85,7 +86,7 @@ def build_static_map_figure(map_data, title="Track map", downsample_to: int = 50
     # thin gray line underneath for continuity between colored dots
     fig.add_trace(go.Scatter(
         x=map_data["x"][idx], y=map_data["y"][idx],
-        mode="lines", line=dict(color="lightgray", width=2),
+        mode="lines", line=dict(color=COLORS["border"], width=2),
         showlegend=False, hoverinfo="skip",
     ))
     fig.add_trace(go.Scatter(
@@ -106,7 +107,10 @@ def build_static_map_figure(map_data, title="Track map", downsample_to: int = 50
         xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
         yaxis=dict(visible=False),
         height=600,
-        plot_bgcolor="white",
+        paper_bgcolor=COLORS["bg_panel"],
+        plot_bgcolor=COLORS["bg_panel"],
+        font=dict(family=FONT_MONO, color=COLORS["text_dim"]),
+        title_font=dict(family=FONT_DISPLAY, color=COLORS["text"], size=16),
     )
     return fig
 
@@ -123,7 +127,7 @@ def build_animated_map_figure(map_data, title="Lap replay", n_frames: int = 150)
     car_angle_0 = _marker_angle_deg(map_data["heading"][0])
     base_traces = [
         go.Scatter(x=map_data["x"][static_idx], y=map_data["y"][static_idx],
-                    mode="lines", line=dict(color="lightgray", width=2),
+                    mode="lines", line=dict(color=COLORS["border"], width=2),
                     showlegend=False, hoverinfo="skip"),
         go.Scatter(x=map_data["x"][static_idx], y=map_data["y"][static_idx],
                     mode="markers",
@@ -136,8 +140,8 @@ def build_animated_map_figure(map_data, title="Lap replay", n_frames: int = 150)
         # with a small dark outline "cockpit" dot on top for visibility.
         go.Scatter(x=[map_data["x"][0]], y=[map_data["y"][0]],
                     mode="markers",
-                    marker=dict(symbol="triangle-up", size=22, color="#E10600",
-                                angle=car_angle_0, line=dict(width=1.5, color="black")),
+                    marker=dict(symbol="triangle-up", size=22, color=COLORS["amber"],
+                                angle=car_angle_0, line=dict(width=1.5, color=COLORS["bg"])),
                     name="Car", showlegend=False),
     ]
 
@@ -154,7 +158,7 @@ def build_animated_map_figure(map_data, title="Lap replay", n_frames: int = 150)
                 annotations=[dict(
                     text=f"{map_data['v_kmh'][fi]:.0f} km/h &nbsp;|&nbsp; t={t_at_frame:.1f}s",
                     x=0.02, y=0.98, xref="paper", yref="paper",
-                    showarrow=False, font=dict(size=16),
+                    showarrow=False, font=dict(family=FONT_MONO, color=COLORS["amber"], size=16),
                 )]
             ),
         ))
@@ -165,10 +169,15 @@ def build_animated_map_figure(map_data, title="Lap replay", n_frames: int = 150)
         xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
         yaxis=dict(visible=False),
         height=650,
-        plot_bgcolor="white",
+        paper_bgcolor=COLORS["bg_panel"],
+        plot_bgcolor=COLORS["bg_panel"],
+        font=dict(family=FONT_MONO, color=COLORS["text_dim"]),
+        title_font=dict(family=FONT_DISPLAY, color=COLORS["text"], size=16),
         updatemenus=[dict(
             type="buttons", showactive=False,
             y=1, x=1.05, xanchor="left", yanchor="top",
+            bgcolor=COLORS["bg_panel_alt"], bordercolor=COLORS["border"],
+            font=dict(family=FONT_DISPLAY, color=COLORS["text"], size=12),
             buttons=[
                 dict(label="▶ Play", method="animate",
                      args=[None, dict(frame=dict(duration=40, redraw=True),
@@ -185,6 +194,8 @@ def build_animated_map_figure(map_data, title="Lap replay", n_frames: int = 150)
                         label="")
                    for fi in frame_idx],
             x=0, y=0, len=1.0, currentvalue=dict(visible=False),
+            bgcolor=COLORS["bg_panel_alt"], bordercolor=COLORS["border"],
+            activebgcolor=COLORS["amber"],
         )],
     )
     return fig

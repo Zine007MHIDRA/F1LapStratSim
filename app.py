@@ -12,6 +12,7 @@ Deploy for free:
 
 import streamlit as st
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import time
 
 from car_model import car_2025, car_2026
@@ -22,8 +23,10 @@ from race_sim import simulate_race_strategy, pit_loss_for
 from strategy_optimizer import find_best_strategy, format_plan, format_time, \
     generate_1stop_plans, generate_2stop_plans
 from map_viz import build_lap_map_data, build_static_map_figure, build_animated_map_figure
+import theme
 
 st.set_page_config(page_title="F1 Lap + Strategy Simulator", layout="wide")
+theme.inject_css()
 
 
 # ---------- Sidebar: track + car generation ----------
@@ -39,6 +42,7 @@ car_choice = st.sidebar.radio(
     ["2026 (active aero, current regs)", "2025 (fixed wing)"],
 )
 car = car_2026(track_name) if car_choice.startswith("2026") else car_2025(track_name)
+car_label = "2026 ACTIVE AERO" if car_choice.startswith("2026") else "2025 FIXED WING"
 
 with st.sidebar.expander("About this model"):
     st.markdown(
@@ -54,6 +58,8 @@ with st.sidebar.expander("About this model"):
         "track-width-aware racing-line optimization — see the README."
     )
 
+theme.render_header(track_name, LAP_LENGTH, car_label)
+
 tab1, tab2, tab3, tab4 = st.tabs([
     "🏁 Single Lap", "🛞 Custom Strategy", "🔍 Strategy Optimizer", "🗺️ Track Map"
 ])
@@ -67,23 +73,46 @@ with tab1:
             result = simulate_lap(TRACK, car, step=2.0)
 
         t = result["lap_time"]
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Lap time", format_time(t))
-        col2.metric("Top speed", f"{result['v_profile'].max()*3.6:.1f} km/h")
-        col3.metric("Avg speed", f"{(LAP_LENGTH/t)*3.6:.1f} km/h")
+        theme.render_readout_row([
+            ("Lap Time", format_time(t), None, theme.COLORS["amber"]),
+            ("Top Speed", f"{result['v_profile'].max()*3.6:.1f}", "km/h", theme.COLORS["cyan"]),
+            ("Avg Speed", f"{(LAP_LENGTH/t)*3.6:.1f}", "km/h", theme.COLORS["purple"]),
+        ])
 
-        fig = go.Figure()
+        fig = make_subplots(
+            rows=3, cols=1, shared_xaxes=True,
+            row_heights=[0.5, 0.25, 0.25], vertical_spacing=0.04,
+            subplot_titles=("SPEED (KM/H)", "THROTTLE (%)", "BRAKE (%)"),
+        )
         fig.add_trace(go.Scatter(
             x=result["s"], y=result["v_profile"] * 3.6,
-            mode="lines", name="Speed", line=dict(width=2)
-        ))
-        fig.update_layout(
-            xaxis_title="Distance around lap (m)",
-            yaxis_title="Speed (km/h)",
-            title=f"{track_name} speed trace — {format_time(t)}",
-            height=450,
-        )
+            mode="lines", name="Speed", line=dict(width=2.5, color=theme.COLORS["cyan"]),
+        ), row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=result["s"], y=result["throttle_pct"],
+            mode="lines", name="Throttle", line=dict(width=0),
+            fill="tozeroy", fillcolor="rgba(0,230,118,0.5)",
+        ), row=2, col=1)
+        fig.add_trace(go.Scatter(
+            x=result["s"], y=result["brake_pct"],
+            mode="lines", name="Brake", line=dict(width=0),
+            fill="tozeroy", fillcolor="rgba(255,59,59,0.5)",
+        ), row=3, col=1)
+        fig.update_yaxes(range=[0, 105], row=2, col=1)
+        fig.update_yaxes(range=[0, 105], row=3, col=1)
+        fig.update_xaxes(title_text="DISTANCE AROUND LAP (M)", row=3, col=1)
+        fig.update_layout(**theme.themed_layout_kwargs(height=700))
+        fig.update_layout(title=f"{track_name} — {format_time(t)}", showlegend=False)
+        for ann in fig.layout.annotations:
+            ann.font = dict(family=theme.FONT_MONO, color=theme.COLORS["text_dim"], size=11)
         st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            "Throttle/brake are derived from the simulated speed profile "
+            "(actual acceleration vs. the theoretical max at that point), "
+            "not independent driver inputs — so they're internally "
+            "consistent with the speed trace by construction, not an "
+            "independent model of driver behavior."
+        )
     else:
         st.info("Click **Simulate lap** to run the physics engine.")
 
@@ -123,20 +152,23 @@ with tab2:
                                               track_name=track_name)
 
             t = res["total_time"]
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Total race time", format_time(t))
-            col2.metric("Avg lap", f"{t/total_laps:.3f}s")
-            col3.metric("Fastest / slowest lap",
-                        f"{min(res['lap_times']):.2f}s / {max(res['lap_times']):.2f}s")
+            theme.render_readout_row([
+                ("Total Race Time", format_time(t), None, theme.COLORS["amber"]),
+                ("Avg Lap", f"{t/total_laps:.3f}", "sec", theme.COLORS["cyan"]),
+                ("Fastest Lap", f"{min(res['lap_times']):.2f}", "sec", theme.COLORS["positive"]),
+                ("Slowest Lap", f"{max(res['lap_times']):.2f}", "sec", theme.COLORS["negative"]),
+            ])
 
             fig = go.Figure()
             fig.add_trace(go.Scatter(
-                y=res["lap_times"], mode="lines+markers", name="Lap time"
+                y=res["lap_times"], mode="lines+markers", name="Lap time",
+                line=dict(color=theme.COLORS["cyan"], width=2),
+                marker=dict(size=5, color=theme.COLORS["amber"]),
             ))
+            fig.update_layout(**theme.themed_layout_kwargs(height=400))
             fig.update_layout(
-                xaxis_title="Lap number", yaxis_title="Lap time (s)",
+                xaxis_title="LAP NUMBER", yaxis_title="LAP TIME (S)",
                 title=f"Lap times — {format_plan(stint_inputs)}",
-                height=400,
             )
             st.plotly_chart(fig, use_container_width=True)
 
@@ -165,17 +197,7 @@ with tab3:
 
         st.success(f"Done in {elapsed:.1f}s")
         best_time = results[0][0]
-
-        table_data = []
-        for i, (t, plan) in enumerate(results[:10]):
-            gap = t - best_time
-            table_data.append({
-                "Rank": i + 1,
-                "Strategy": format_plan(plan),
-                "Total time": format_time(t),
-                "Gap": "BEST" if gap == 0 else f"+{gap:.1f}s",
-            })
-        st.table(table_data)
+        theme.render_strategy_table(results, best_time)
 
 
 # ---------- Tab 4: Track map ----------

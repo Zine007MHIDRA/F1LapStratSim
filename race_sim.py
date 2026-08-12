@@ -34,7 +34,7 @@ def simulate_stint(segments, car: CarParams, compound_name: str, n_laps: int,
         g_mult = grip_multiplier(compound, lap_on_tyre)
         result = simulate_lap(segments, car, step=step,
                                race_distance_so_far_m=race_distance,
-                               grip_multiplier=g_mult)
+                               grip_multiplier=g_mult, compute_pedals=False)
         lap_times.append(result["lap_time"])
         race_distance += lap_length
 
