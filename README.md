@@ -274,54 +274,6 @@ standard surveying "closing error" adjustment).
 4. That's it — `main.py` and `app.py` both pick up new tracks automatically
    from the `TRACKS` dict.
 
-## Running the web app locally
-
-```bash
-streamlit run app.py
-```
-
-Opens at `http://localhost:8501` — sidebar picks the car generation, and
-three tabs cover single-lap simulation, custom strategy testing, and the
-strategy optimizer, all backed by the same physics engine as the CLI.
-
-## Deploying for free (Streamlit Community Cloud)
-
-This gets you a public URL (e.g. `yourname-f1sim.streamlit.app`) at zero
-cost — no credit card, no server to manage. Steps:
-
-1. **Push this project to GitHub.**
-   ```bash
-   git init
-   git add .
-   git commit -m "F1 lap + strategy simulator"
-   git branch -M main
-   git remote add origin https://github.com/<your-username>/f1sim.git
-   git push -u origin main
-   ```
-   (Create the empty repo on GitHub first if you haven't — github.com/new)
-
-2. **Go to [share.streamlit.io](https://share.streamlit.io)** and sign in
-   with your GitHub account (free).
-
-3. Click **"New app"**, pick your `f1sim` repo, branch `main`, and set the
-   main file path to `app.py`.
-
-4. Click **Deploy**. First build takes a minute or two (installs
-   `requirements.txt`); after that it's live at a public URL you can share.
-
-5. **Updating later:** every time you `git push` to `main`, the deployed app
-   auto-redeploys. No redeployment step needed.
-
-**Free tier limits to know about:** Streamlit Community Cloud apps sleep
-after a period of inactivity and wake up on the next visit (a few seconds'
-delay), and there's a modest RAM ceiling (~1GB) — fine for this project, but
-if you ever add heavier simulations (more tracks, wider strategy search
-grids), keep the `step` slider defaults conservative in `app.py` so a single
-optimizer run doesn't time out or exceed memory on the free tier.
-
-**Alternative free host:** [Hugging Face Spaces](https://huggingface.co/spaces)
-also hosts Streamlit apps for free — create a Space, choose the Streamlit SDK,
-and push the same files there instead (or in addition).
 
 ## Known simplifications (roadmap for improvement)
 
