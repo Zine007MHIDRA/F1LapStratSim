@@ -43,6 +43,11 @@ car_choice = st.sidebar.radio(
 )
 car = car_2026(track_name) if car_choice.startswith("2026") else car_2025(track_name)
 car_label = "2026 ACTIVE AERO" if car_choice.startswith("2026") else "2025 FIXED WING"
+# Separate race-trim car (full fuel, race-mode tyres/engine) for the race
+# strategy tabs -- the sidebar selection above is qualifying-trim (tuned to
+# real pole times), which is unrealistically light/fast to reuse across an
+# entire race distance. See car_model.py's car_2025()/car_2026() docstrings.
+race_car = car_2026(track_name, trim="race") if car_choice.startswith("2026") else car_2025(track_name, trim="race")
 
 with st.sidebar.expander("About this model"):
     st.markdown(
@@ -120,6 +125,11 @@ with tab1:
 # ---------- Tab 2: Custom strategy ----------
 with tab2:
     st.subheader("Test a specific pit strategy")
+    st.caption(
+        "Uses race-trim car (full-fuel start, race-mode tyres/engine) — "
+        "slower than the Single Lap tab's qualifying pace by design, since "
+        "no real car sustains qualifying trim for a whole race distance."
+    )
 
     total_laps = st.number_input("Total race laps", min_value=10, max_value=80, value=53)
     n_stints = st.selectbox("Number of stints", [1, 2, 3], index=1)
@@ -148,7 +158,7 @@ with tab2:
             st.error("Stint lengths add up to more than the total race laps — reduce an earlier stint.")
         else:
             with st.spinner(f"Simulating {total_laps} laps..."):
-                res = simulate_race_strategy(TRACK, car, stint_inputs, total_laps, step=8.0,
+                res = simulate_race_strategy(TRACK, race_car, stint_inputs, total_laps, step=8.0,
                                               track_name=track_name)
 
             t = res["total_time"]
@@ -177,6 +187,7 @@ with tab2:
 with tab3:
     st.subheader("Search for the fastest strategy")
     st.caption("Brute-force search over 1-stop and (optionally) 2-stop combinations.")
+    st.caption("Uses race-trim car (full-fuel start) — same reasoning as the Custom Strategy tab.")
 
     opt_laps = st.number_input("Total race laps", min_value=10, max_value=80, value=53, key="opt_laps")
     include_2stop = st.checkbox("Include 2-stop strategies (slower search)", value=False)
@@ -191,7 +202,7 @@ with tab3:
     if st.button("Run optimizer", key="optimizer_btn"):
         with st.spinner(f"Evaluating ~{n_plans} strategies — this can take a while..."):
             t0 = time.time()
-            results = find_best_strategy(TRACK, car, opt_laps, include_2stop=include_2stop,
+            results = find_best_strategy(TRACK, race_car, opt_laps, include_2stop=include_2stop,
                                           step=float(step), verbose=False, track_name=track_name)
             elapsed = time.time() - t0
 

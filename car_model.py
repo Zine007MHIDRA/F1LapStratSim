@@ -136,33 +136,28 @@ class CarParams:
         return self.mass_empty + max(0.0, self.fuel_mass - fuel_burned)
 
 
-def car_2025(track_name: str = "Monza") -> CarParams:
-    """Fixed-wing car matching the pre-2026 regulation era, tuned to real
-    QUALIFYING (pole) pace -- not full-race pace.
+def car_2025(track_name: str = "Monza", trim: str = "qualifying") -> CarParams:
+    """Fixed-wing car matching the pre-2026 regulation era.
+
+    trim="qualifying" (default): a single hot lap -- light fuel (15kg),
+    peak tyre grip, full engine mode. Tuned to real QUALIFYING (pole) pace.
+    trim="race": full race-start fuel load, slightly more conservative tyre
+    grip and engine mode -- see car_2025_race_notes below for why and how
+    this was calibrated. Aero (CdA/ClA) and top speed are unchanged between
+    the two -- a team's wing choice and gear ratios don't change between
+    qualifying and the race, only fuel load and how hard the tyres/engine
+    are pushed lap after lap.
 
     Aero (CdA/ClA) is track-specific: real F1 teams run a different wing
     level at every track (Monza minimum downforce, Silverstone/Spa higher).
-    Fuel load is also qualifying-trim (15kg, a representative out+flying+in
-    lap load) rather than a full race tank (110kg) -- using race fuel while
-    trying to match pole times was papering over ~95kg of extra mass with
-    unrealistic downforce, which is why earlier tuning passes needed
-    increasingly extreme ClA values without ever quite closing the gap.
-    Peak tyre grip (tyre_mu=1.90) and engine power (780kW) are also nudged
-    up slightly from the race-pace defaults, representing qualifying-spec
-    soft tyres and full engine mode.
 
-    Retuned against real 2025 GP pole times, landing within ~0.1s of each:
+    Retuned against real 2025 GP pole times (trim="qualifying"), landing
+    within ~0.1s of each:
       Monza:       78.72s vs real pole 78.79s (Verstappen, 1:18.792)
       Silverstone: 84.97s vs real pole 84.89s (Verstappen, 1:24.892)
       Spa:        100.53s vs real pole 100.56s (Antonelli, 1:40.562)
 
-    NOTE: this now represents a single hot qualifying lap, not sustainable
-    full-race pace -- race-distance strategy sims (race_sim.py) will run
-    faster than real full-fuel race pace as a result, since they reuse this
-    same car spec across a whole stint. A proper fix would give race_sim a
-    separate race-trim car (heavier fuel, slightly less aggressive tyre_mu)
-    instead of reusing the qualifying-tuned spec for both purposes --
-    flagged as a roadmap item in the README.
+    See car_2025_race_notes / README for trim="race" calibration.
     """
     # top_speed_kmh: real gear-limited terminal speeds (with DRS), not
     # arbitrary tuning knobs -- Monza/Silverstone/Spa top speeds in recent
@@ -176,22 +171,31 @@ def car_2025(track_name: str = "Monza") -> CarParams:
         "Spa-Francorchamps": dict(CdA=0.55, ClA=1.30, top_speed_kmh=345.0),
     }
     aero = presets.get(track_name, presets["Monza"])
+    if trim == "race":
+        fuel_mass, fuel_burn_rate = 110.0, 0.30
+        engine_power, tyre_mu = 750_000.0, 1.75
+    else:
+        fuel_mass, fuel_burn_rate = 15.0, 0.30
+        engine_power, tyre_mu = 780_000.0, 1.90
     return CarParams(
-        mass_empty=798.0, fuel_mass=15.0, fuel_burn_rate=0.30,
-        engine_power=780_000.0, drivetrain_efficiency=0.90,
+        mass_empty=798.0, fuel_mass=fuel_mass, fuel_burn_rate=fuel_burn_rate,
+        engine_power=engine_power, drivetrain_efficiency=0.90,
         CdA=aero["CdA"], ClA=aero["ClA"], active_aero=False, manual_override=False,
         drs_available=True, top_speed_kmh=aero["top_speed_kmh"],
-        tyre_mu=1.90, rolling_resistance_coeff=0.015,
+        tyre_mu=tyre_mu, rolling_resistance_coeff=0.015,
     )
 
 
-def car_2026(track_name: str = "Monza") -> CarParams:
+def car_2026(track_name: str = "Monza", trim: str = "qualifying") -> CarParams:
     """2026-spec car: lighter, active aero (Z-mode corners / X-mode straights),
-    Manual Override MGU-K boost -- also now tuned to real QUALIFYING pace on
-    a qualifying-trim fuel load (15kg), same reasoning as car_2025() above.
+    Manual Override MGU-K boost.
+
+    trim="qualifying" (default) vs trim="race": same reasoning as
+    car_2025() above -- fuel load and how hard tyres/engine are pushed
+    differ, aero and gearing (top speed) don't.
 
     Per-track corner_ClA (Z-mode downforce) and straight_CdA (X-mode drag)
-    tuned against real 2026 GP pole times where available:
+    tuned against real 2026 GP pole times where available (trim="qualifying"):
       Silverstone: 88.06s vs real pole 88.11s (Antonelli, 1:28.111)
       Spa:        104.46s vs real pole 104.36s (Antonelli, 1:44.361)
       Monza:       82.35s vs an ESTIMATED 82.30s -- the 2026 Italian GP
@@ -212,11 +216,17 @@ def car_2026(track_name: str = "Monza") -> CarParams:
         "Spa-Francorchamps": dict(corner_ClA=0.62, straight_CdA=0.55, top_speed_kmh=340.0),
     }
     aero = presets.get(track_name, presets["Monza"])
+    if trim == "race":
+        fuel_mass, fuel_burn_rate = 90.0, 0.28
+        engine_power, tyre_mu = 750_000.0, 1.72
+    else:
+        fuel_mass, fuel_burn_rate = 15.0, 0.28
+        engine_power, tyre_mu = 780_000.0, 1.85
     return CarParams(
         mass_empty=768.0,          # official 2026 minimum weight
-        fuel_mass=15.0,            # qualifying-trim load (see car_2025() docstring)
-        fuel_burn_rate=0.28,
-        engine_power=780_000.0,    # slightly up from race-pace default, full quali engine mode
+        fuel_mass=fuel_mass,
+        fuel_burn_rate=fuel_burn_rate,
+        engine_power=engine_power,
         drivetrain_efficiency=0.90,
         # Fallback fixed values (used only if active_aero is somehow off)
         CdA=0.70, ClA=1.60,
@@ -241,7 +251,7 @@ def car_2026(track_name: str = "Monza") -> CarParams:
                                     # rating, which mostly covers normal deployment
         override_taper_start_kmh=290.0,
         override_taper_end_kmh=355.0,
-        tyre_mu=1.85,               # narrower tyres, qualifying-spec softs
+        tyre_mu=tyre_mu,
         rolling_resistance_coeff=0.014,
         top_speed_kmh=aero["top_speed_kmh"],
     )

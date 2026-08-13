@@ -40,9 +40,18 @@ def choose_car(track_name: str):
     choice = input("Choose (1/2) [default 2]: ").strip()
     if choice == "1":
         print("Using 2025-spec car.")
-        return car_2025(track_name)
+        return car_2025(track_name), "2025"
     print("Using 2026-spec car (active aero, ~30% less downforce, Manual Override).")
-    return car_2026(track_name)
+    return car_2026(track_name), "2026"
+
+
+def race_trim_car(track_name: str, generation: str):
+    """Full-fuel, race-mode version of the chosen car generation -- used for
+    race strategy (options 2/3), never for the single-lap tab (which stays
+    on qualifying trim). See car_model.py's car_2025()/car_2026() docstrings."""
+    if generation == "2025":
+        return car_2025(track_name, trim="race")
+    return car_2026(track_name, trim="race")
 
 
 def menu():
@@ -97,6 +106,8 @@ def option_single_lap(car):
 
 
 def option_custom_strategy(car):
+    print("(Using race-trim car: full-fuel start, race-mode tyres/engine --")
+    print(" slower than option 1's qualifying pace by design.)")
     print(f"\nAvailable compounds: {list(COMPOUNDS.keys())}")
     total_laps = int(input("Total race laps (e.g. 53 for Monza): ").strip())
 
@@ -130,6 +141,7 @@ def option_custom_strategy(car):
 
 
 def option_optimize(car):
+    print("(Using race-trim car: full-fuel start, race-mode tyres/engine.)")
     total_laps = int(input("Total race laps (e.g. 53 for Monza): ").strip())
     include_2stop = input("Include 2-stop strategies? (y/n, slower): ").strip().lower() == "y"
     print("Resolution: higher step = faster but less precise physics")
@@ -172,7 +184,8 @@ def option_car_params(car):
 def main():
     global TRACK, TRACK_NAME
     TRACK_NAME, TRACK = choose_track()
-    car = choose_car(TRACK_NAME)
+    car, generation = choose_car(TRACK_NAME)
+    car_race = race_trim_car(TRACK_NAME, generation)
     print(f"F1 lap + strategy simulator loaded. Track: {TRACK_NAME} ({total_length(TRACK):.0f}m).")
     print("NOTE: physics constants are a first-pass model, tuned to match")
     print("reported real-world deltas (2026 vs 2025) rather than fitted to")
@@ -184,9 +197,9 @@ def main():
         if choice == "1":
             option_single_lap(car)
         elif choice == "2":
-            option_custom_strategy(car)
+            option_custom_strategy(car_race)
         elif choice == "3":
-            option_optimize(car)
+            option_optimize(car_race)
         elif choice == "4":
             car = option_car_params(car)
         elif choice == "5":
