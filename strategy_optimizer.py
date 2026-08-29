@@ -21,13 +21,15 @@ COMPOUND_NAMES = ["soft", "medium", "hard"]
 
 def generate_1stop_plans(total_laps: int, min_stint: int = 8, lap_grid: int = 3):
     """All (compound_A, laps_A), (compound_B, laps_B) combos covering total_laps."""
+    effective_min = max(2, min(min_stint, total_laps // 3))
+    effective_grid = max(1, min(lap_grid, total_laps // 10))
     plans = []
     for c1, c2 in itertools.product(COMPOUND_NAMES, repeat=2):
         if c1 == c2:
             continue  # F1 rule: must use 2 different dry compounds in a race
-        for laps1 in range(min_stint, total_laps - min_stint + 1, lap_grid):
+        for laps1 in range(effective_min, total_laps - effective_min + 1, effective_grid):
             laps2 = total_laps - laps1
-            if laps2 < min_stint:
+            if laps2 < effective_min:
                 continue
             plans.append([(c1, laps1), (c2, laps2)])
     return plans
@@ -35,14 +37,16 @@ def generate_1stop_plans(total_laps: int, min_stint: int = 8, lap_grid: int = 3)
 
 def generate_2stop_plans(total_laps: int, min_stint: int = 8, lap_grid: int = 6):
     """All 3-stint combos covering total_laps, must include >=2 distinct compounds."""
+    effective_min = max(2, min(min_stint, total_laps // 5))
+    effective_grid = max(1, min(lap_grid, total_laps // 8))
     plans = []
     for c1, c2, c3 in itertools.product(COMPOUND_NAMES, repeat=3):
         if len({c1, c2, c3}) < 2:
             continue
-        for laps1 in range(min_stint, total_laps - 2 * min_stint + 1, lap_grid):
-            for laps2 in range(min_stint, total_laps - laps1 - min_stint + 1, lap_grid):
+        for laps1 in range(effective_min, total_laps - 2 * effective_min + 1, effective_grid):
+            for laps2 in range(effective_min, total_laps - laps1 - effective_min + 1, effective_grid):
                 laps3 = total_laps - laps1 - laps2
-                if laps3 < min_stint:
+                if laps3 < effective_min:
                     continue
                 plans.append([(c1, laps1), (c2, laps2), (c3, laps3)])
     return plans

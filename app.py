@@ -123,7 +123,12 @@ with tab_single:
     with col_res:
         step_res = st.select_slider("Simulation Resolution", options=[1.0, 2.0, 5.0], value=2.0, format_func=lambda x: f"{x:.0f}m ({'High' if x<=1.0 else ('Standard' if x==2.0 else 'Fast')})")
 
-    if run_lap or "last_lap_result" not in st.session_state:
+    track_or_car_changed = (
+        st.session_state.get("last_lap_track") != track_name
+        or st.session_state.get("last_lap_car") != car_label
+    )
+
+    if run_lap or "last_lap_result" not in st.session_state or track_or_car_changed:
         with st.spinner(f"Computing forward-backward solver for {track_name} ({car_label})..."):
             result = simulate_lap(TRACK, car, step=step_res)
             st.session_state["last_lap_result"] = result
@@ -137,7 +142,7 @@ with tab_single:
         v_max = result['v_profile'].max() * 3.6
         v_avg = (LAP_LENGTH / t) * 3.6
         v_min_corner = result['v_profile'].min() * 3.6
-        throttle_pct_avg = np.mean(result['throttle_pct'])
+        throttle_pct_avg = np.mean(result['throttle_pct']) if result.get('throttle_pct') is not None else 0.0
 
         # Multi-Channel KPI Grid
         theme.render_readout_row([
@@ -418,17 +423,20 @@ with tab_opt:
                                           step=float(opt_step), verbose=False, track_name=track_name)
             calc_time = time.time() - t_start
 
-        best_time = results[0][0]
-        st.success(f"Optimized in **{calc_time:.2f}s** — Found optimal strategy!")
+        if results:
+            best_time = results[0][0]
+            st.success(f"Optimized in **{calc_time:.2f}s** — Evaluated {len(results)} valid strategies!")
 
-        # Display Top Strategy Leaderboard
-        theme.render_strategy_table(results, best_time, top_n=10)
+            # Display Top Strategy Leaderboard
+            theme.render_strategy_table(results, best_time, top_n=10)
 
-        # Top 5 Stint Comparison Visualizer
-        st.markdown('<div class="section-title">Top 5 Strategy Timeline Comparison</div>', unsafe_allow_html=True)
-        for rank, (t_strat, plan) in enumerate(results[:5]):
-            st.markdown(f"**P{rank+1} &bull; Total: {theme.format_time_local(t_strat)} (+{t_strat-best_time:.2f}s)**")
-            theme.render_stint_timeline(plan, opt_laps)
+            # Top 5 Stint Comparison Visualizer
+            st.markdown('<div class="section-title">Top 5 Strategy Timeline Comparison</div>', unsafe_allow_html=True)
+            for rank, (t_strat, plan) in enumerate(results[:5]):
+                st.markdown(f"**P{rank+1} &bull; Total: {theme.format_time_local(t_strat)} (+{t_strat-best_time:.2f}s)**")
+                theme.render_stint_timeline(plan, opt_laps)
+        else:
+            st.warning("No valid strategies found for the selected parameters. Try increasing the total race laps.")
 
 
 # ========================================================
