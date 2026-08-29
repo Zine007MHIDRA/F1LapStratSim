@@ -73,11 +73,11 @@ with st.sidebar:
         </div>
         <div style="display:flex;justify-content:space-between;font-size:0.8rem;padding:2px 0;">
             <span style="color:{theme.COLORS['text_muted']};">Min Mass</span>
-            <span style="font-family:{theme.FONT_MONO};color:#FFF;">{car.mass_kg:.0f} kg</span>
+            <span style="font-family:{theme.FONT_MONO};color:#FFF;">{car.mass_empty:.0f} kg</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:0.8rem;padding:2px 0;">
             <span style="color:{theme.COLORS['text_muted']};">Total Power</span>
-            <span style="font-family:{theme.FONT_MONO};color:#FFF;">{car.p_max_w/1000:.0f} kW (~{car.p_max_w/735.5:.0f} hp)</span>
+            <span style="font-family:{theme.FONT_MONO};color:#FFF;">{car.engine_power/1000:.0f} kW (~{car.engine_power/735.5:.0f} hp)</span>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:0.8rem;padding:2px 0;">
             <span style="color:{theme.COLORS['text_muted']};">Aero Trim</span>
