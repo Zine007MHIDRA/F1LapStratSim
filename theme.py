@@ -49,6 +49,18 @@ FONT_MONO = "'JetBrains Mono', 'Roboto Mono', monospace"
 FONT_BODY = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
 
 
+def render_html(html: str):
+    """Render custom HTML without letting indentation become Markdown code.
+
+    Streamlit still runs the string through a Markdown parser when
+    ``unsafe_allow_html`` is enabled. A blank line followed by four or more
+    spaces starts a code block, so dynamically concatenated multiline
+    fragments must be compacted before rendering.
+    """
+    compact = "".join(line.strip() for line in html.splitlines())
+    st.markdown(compact, unsafe_allow_html=True)
+
+
 def inject_css():
     st.markdown(f"""
     <style>
@@ -609,7 +621,7 @@ def render_f1_header(track_name: str, lap_length: float, car_label: str, status:
         </div>
     </div>
     """
-    st.markdown(html, unsafe_allow_html=True)
+    render_html(html)
 
 
 def render_readout_row(items):
@@ -631,7 +643,7 @@ def render_readout_row(items):
             f'</div>'
         )
     html = f'<div class="telemetry-grid">{"".join(cards)}</div>'
-    st.markdown(html, unsafe_allow_html=True)
+    render_html(html)
 
 
 def render_track_card(track_name: str, lap_length: float, pit_loss: float, segments):
@@ -661,7 +673,7 @@ def render_track_card(track_name: str, lap_length: float, pit_loss: float, segme
         </div>
     </div>
     """
-    st.markdown(html, unsafe_allow_html=True)
+    render_html(html)
 
 
 def render_stint_timeline(stint_inputs, total_laps: int):
@@ -711,7 +723,7 @@ def render_stint_timeline(stint_inputs, total_laps: int):
         </div>
     </div>
     """
-    st.markdown(html, unsafe_allow_html=True)
+    render_html(html)
 
 
 def render_strategy_table(results, best_time: float, top_n: int = 10):
@@ -777,7 +789,7 @@ def render_strategy_table(results, best_time: float, top_n: int = 10):
         </table>
     </div>
     """
-    st.markdown(table_html, unsafe_allow_html=True)
+    render_html(table_html)
 
 
 def render_corner_table(segments, result):
@@ -837,7 +849,7 @@ def render_corner_table(segments, result):
         </table>
     </div>
     """
-    st.markdown(table_html, unsafe_allow_html=True)
+    render_html(table_html)
 
 
 def format_time_local(t):
