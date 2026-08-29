@@ -19,6 +19,7 @@ from race_sim import simulate_race_strategy, pit_loss_for
 from strategy_optimizer import find_best_strategy, format_plan, format_time, \
     generate_1stop_plans, generate_2stop_plans
 from map_viz import build_lap_map_data, build_static_map_figure, build_animated_map_figure
+from validation import validate_lap_result
 import theme
 
 st.set_page_config(
@@ -139,6 +140,7 @@ with tab_single:
 
     if result:
         t = result["lap_time"]
+        validation_report = validate_lap_result(result, car, LAP_LENGTH)
         v_max = result['v_profile'].max() * 3.6
         v_avg = (LAP_LENGTH / t) * 3.6
         v_min_corner = result['v_profile'].min() * 3.6
@@ -158,6 +160,8 @@ with tab_single:
             ("Min Corner Speed", f"{v_min_corner:.1f}", "KM/H &bull; TIGHTEST APEX", theme.COLORS["soft"]),
             ("Full Throttle %", f"{full_throttle_pct:.0f}%", "OF LAP DISTANCE", theme.COLORS["positive"]),
         ])
+        if validation_report.warnings:
+            st.warning(" ".join(validation_report.warnings), icon="⚠️")
 
         # Synchronized Multi-Channel Telemetry Chart
         # Calculate approximate longitudinal acceleration (G-Force)
