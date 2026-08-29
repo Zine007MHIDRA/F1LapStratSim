@@ -181,9 +181,10 @@ def build_animated_map_figure(map_data, title="Lap Replay Telemetry", n_frames: 
                     name="Car", showlegend=False),
     ]
 
+    total_s = max(map_data["s"][-1], 1.0) if len(map_data["s"]) > 0 else 1.0
     frames = []
     for fi in frame_idx:
-        t_at_frame = map_data["elapsed_time"][fi]
+        t_at_frame = map_data["lap_time"] * (map_data["s"][fi] / total_s)
         car_angle = _marker_angle_deg(map_data["heading"][fi])
         cur_v = map_data["v_kmh"][fi]
         cur_s = map_data["s"][fi]

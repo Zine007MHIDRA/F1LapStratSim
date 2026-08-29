@@ -680,7 +680,7 @@ def render_stint_timeline(stint_inputs, total_laps: int):
     bars = ""
     current_lap = 0
     for i, (compound, laps) in enumerate(stint_inputs):
-        pct = (laps / total_laps) * 100
+        pct = (laps / total_laps) * 100 if total_laps > 0 else 0
         bg = compound_colors.get(compound, COLORS["cyan"])
         fg = text_colors.get(compound, "#FFFFFF")
         start_lap = current_lap + 1

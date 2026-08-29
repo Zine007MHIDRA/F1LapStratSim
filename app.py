@@ -344,7 +344,7 @@ with tab_custom:
             stint_inputs.append((compound, laps))
 
     # Live Stint Timeline Visualization
-    if sum(l for _, l in stint_inputs) == total_laps:
+    if sum(l for _, l in stint_inputs) == total_laps and all(l > 0 for _, l in stint_inputs):
         theme.render_stint_timeline(stint_inputs, total_laps)
 
     if st.button("📊 SIMULATE RACE STRATEGY", key="custom_strat_btn"):

@@ -190,11 +190,18 @@ def option_car_params(car):
     edit = input("\nEdit a parameter? (enter field name, or blank to skip): ").strip()
     if edit and hasattr(car, edit):
         new_val = input(f"New value for {edit}: ").strip()
+        orig_val = getattr(car, edit)
         try:
-            setattr(car, edit, float(new_val))
-            print(f"Updated {edit} = {new_val}")
+            if isinstance(orig_val, bool):
+                val = new_val.lower() in ("true", "1", "yes", "y")
+            elif isinstance(orig_val, int):
+                val = int(new_val)
+            else:
+                val = float(new_val)
+            setattr(car, edit, val)
+            print(f"Updated {edit} = {getattr(car, edit)}")
         except ValueError:
-            print("Invalid number, no change made.")
+            print("Invalid input value, no change made.")
     return car
 
 
