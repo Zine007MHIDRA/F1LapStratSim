@@ -617,19 +617,21 @@ def render_readout_row(items):
     Renders responsive high-tech Telemetry HUD cards.
     items: list of (label, value, unit/sub_text_or_None, accent_color_hex)
     """
-    cards = ""
+    cards = []
     for label, value, sub, accent in items:
         sub_html = f'<div class="telemetry-sub">{sub}</div>' if sub else ""
-        cards += f"""
-        <div class="telemetry-card" style="--card-accent: {accent};">
-            <div class="telemetry-label">
-                <span>{label}</span>
-            </div>
-            <div class="telemetry-value">{value}</div>
-            {sub_html}
-        </div>
-        """
-    st.markdown(f'<div class="telemetry-grid">{cards}</div>', unsafe_allow_html=True)
+        # Keep the fragment compact. Blank lines followed by indentation are
+        # Markdown code blocks, even when unsafe HTML is enabled, which caused
+        # every card after the first one to be displayed as raw <div> source.
+        cards.append(
+            f'<div class="telemetry-card" style="--card-accent: {accent};">'
+            f'<div class="telemetry-label"><span>{label}</span></div>'
+            f'<div class="telemetry-value">{value}</div>'
+            f'{sub_html}'
+            f'</div>'
+        )
+    html = f'<div class="telemetry-grid">{"".join(cards)}</div>'
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def render_track_card(track_name: str, lap_length: float, pit_loss: float, segments):
