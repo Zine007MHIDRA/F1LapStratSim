@@ -855,13 +855,13 @@ def themed_layout_kwargs(height: int = None):
             gridcolor="rgba(255,255,255,0.06)",
             zerolinecolor="rgba(255,255,255,0.1)",
             tickfont=dict(family=FONT_MONO, size=10, color=COLORS["text_dim"]),
-            titlefont=dict(family=FONT_TECH, size=12, color=COLORS["text_muted"]),
+            title=dict(font=dict(family=FONT_TECH, size=12, color=COLORS["text_muted"])),
         ),
         yaxis=dict(
             gridcolor="rgba(255,255,255,0.06)",
             zerolinecolor="rgba(255,255,255,0.1)",
             tickfont=dict(family=FONT_MONO, size=10, color=COLORS["text_dim"]),
-            titlefont=dict(family=FONT_TECH, size=12, color=COLORS["text_muted"]),
+            title=dict(font=dict(family=FONT_TECH, size=12, color=COLORS["text_muted"])),
         ),
         legend=dict(
             bgcolor="rgba(20, 26, 36, 0.8)",

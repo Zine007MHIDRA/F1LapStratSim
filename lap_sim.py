@@ -132,28 +132,37 @@ def _pedal_trace(s, v_profile, radius, mass_arr, aero_mode, drs_eligible, eff_ca
     return throttle_pct, brake_pct, accel_mps2
 
 
-def _forward_pass(v_ceiling, s, radius, mass_arr, aero_mode, drs_eligible, eff_car):
+def _forward_pass(v_ceiling, ds_arr, radius, mass_arr, aero_mode, drs_eligible, eff_car):
+    """Propagate acceleration constraints around the complete closed lap."""
     n = len(v_ceiling)
     v = np.copy(v_ceiling)
-    v[0] = min(v[0], 60.0)  # assume rolling start speed at s=0 for simplicity
-    for i in range(1, n):
-        ds = s[i] - s[i - 1]
-        v_prev = v[i - 1]
-        lat_g = _lateral_g(v_prev, radius[i])
-        drs_now = bool(drs_eligible[i]) and (v_prev * 3.6 > DRS_SPEED_THRESHOLD_KMH)
-        a = max_traction_accel(v_prev, mass_arr[i], eff_car, lateral_g=lat_g,
-                                aero_mode=aero_mode[i], drs=drs_now)
+    # Begin immediately after the slowest finite corner constraint. This
+    # supplies a physical seed without inventing an arbitrary start speed.
+    seed = int(np.argmin(v))
+    for offset in range(1, n + 1):
+        i = (seed + offset) % n
+        prev = (i - 1) % n
+        ds = ds_arr[prev]
+        v_prev = v[prev]
+        lat_g = _lateral_g(v_prev, radius[prev])
+        drs_now = bool(drs_eligible[prev]) and (v_prev * 3.6 > DRS_SPEED_THRESHOLD_KMH)
+        a = max_traction_accel(v_prev, mass_arr[prev], eff_car, lateral_g=lat_g,
+                                aero_mode=aero_mode[prev], drs=drs_now)
         v_possible = np.sqrt(max(v_prev ** 2 + 2 * a * ds, 0.0))
         v[i] = min(v_possible, v_ceiling[i])
     return v
 
 
-def _backward_pass(v_ceiling, s, radius, mass_arr, aero_mode, eff_car):
+def _backward_pass(v_ceiling, ds_arr, radius, mass_arr, aero_mode, eff_car):
+    """Propagate braking constraints backward around the closed lap."""
     n = len(v_ceiling)
     v = np.copy(v_ceiling)
-    for i in range(n - 2, -1, -1):
-        ds = s[i + 1] - s[i]
-        v_next = v[i + 1]
+    seed = int(np.argmin(v))
+    for offset in range(1, n + 1):
+        i = (seed - offset) % n
+        nxt = (i + 1) % n
+        ds = ds_arr[i]
+        v_next = v[nxt]
         lat_g = _lateral_g(v_next, radius[i])
         a_brake = max_brake_decel(v_next, mass_arr[i], eff_car, lateral_g=lat_g, aero_mode=aero_mode[i])
         v_possible = np.sqrt(max(v_next ** 2 + 2 * a_brake * ds, 0.0))
@@ -181,6 +190,8 @@ def simulate_lap(segments, car: CarParams, step: float = 2.0,
     """
     s, radius, seg_idx = build_distance_axis(segments, step=step)
     n = len(s)
+    lap_length = total_length(segments)
+    ds_arr = np.diff(s, append=lap_length)
 
     # Effective car params for this lap (grip degraded by tyre wear if applicable)
     eff_car = CarParams(**{**car.__dict__, "tyre_mu": car.tyre_mu * grip_multiplier})
@@ -190,6 +201,10 @@ def simulate_lap(segments, car: CarParams, step: float = 2.0,
 
     # 1. Corner speed caps
     v_cap = np.array([max_corner_speed(r, mass_arr[i], eff_car) for i, r in enumerate(radius)])
+    # Gearing/rev limits are constraints, not merely a request for zero
+    # acceleration after the integration step has already overshot them.
+    if eff_car.top_speed_kmh is not None:
+        v_cap = np.minimum(v_cap, eff_car.top_speed_kmh / 3.6)
 
     # Aero mode per point: 'corner' (Z-mode/high downforce) inside corners,
     # 'straight' (X-mode/low drag) on straights. For fixed-wing cars
@@ -201,18 +216,18 @@ def simulate_lap(segments, car: CarParams, step: float = 2.0,
     # tighten (reduce) the profile relative to the ceiling passed in, so
     # this is guaranteed to converge monotonically.
     v = np.copy(v_cap)
-    v[0] = min(v[0], 60.0)
     for _ in range(max(n_sweeps, 1)):
-        v_fwd = _forward_pass(v, s, radius, mass_arr, aero_mode, drs_eligible, eff_car)
+        v_fwd = _forward_pass(v, ds_arr, radius, mass_arr, aero_mode, drs_eligible, eff_car)
         v = np.minimum(v, v_fwd)
-        v_bwd = _backward_pass(v, s, radius, mass_arr, aero_mode, eff_car)
+        v_bwd = _backward_pass(v, ds_arr, radius, mass_arr, aero_mode, eff_car)
         v = np.minimum(v, v_bwd)
 
     v_profile = np.maximum(v, 1.0)  # avoid div by zero
 
-    # 3. Integrate lap time: dt = ds / v
-    ds_arr = np.diff(s, append=s[-1] + step)
-    dt_arr = ds_arr / v_profile
+    # 3. Integrate each closed-loop edge using its average endpoint speed.
+    # The final edge connects the last sample back to the start-line sample.
+    v_next = np.roll(v_profile, -1)
+    dt_arr = 2.0 * ds_arr / np.maximum(v_profile + v_next, 1e-6)
     lap_time = np.sum(dt_arr)
 
     # 4. Derive throttle/brake traces from the final converged speed profile
@@ -230,6 +245,7 @@ def simulate_lap(segments, car: CarParams, step: float = 2.0,
         "lap_time": lap_time,
         "seg_idx": seg_idx,
         "dt_arr": dt_arr,
+        "ds_arr": ds_arr,
         "throttle_pct": throttle_pct,
         "brake_pct": brake_pct,
         "accel_mps2": accel_mps2,

@@ -31,6 +31,9 @@ def build_lap_map_data(segments, car, step: float = 5.0):
         "v_kmh": lap["v_profile"][:n] * 3.6,
         "seg_idx": geo["seg_idx"][:n],
         "lap_time": lap["lap_time"],
+        # elapsed_time[i] is the simulated time at point i. dt_arr includes
+        # the closing edge from the final sample back to start/finish.
+        "elapsed_time": np.concatenate(([0.0], np.cumsum(lap["dt_arr"][:-1])))[:n],
         "correction_factor": geo["correction_factor"],
     }
 
@@ -131,7 +134,12 @@ def build_animated_map_figure(map_data, title="Lap Replay Telemetry", n_frames: 
     """Client-side animated lap replay with high-contrast car tracker and dynamic HUD readout."""
     n = len(map_data["x"])
     static_idx = np.linspace(0, n - 1, min(500, n)).astype(int)
-    frame_idx = np.linspace(0, n - 1, min(n_frames, n)).astype(int)
+    # Sample uniformly in simulated time rather than uniformly in distance,
+    # so the marker visibly slows for corners and accelerates on straights.
+    elapsed = map_data["elapsed_time"]
+    target_times = np.linspace(0.0, elapsed[-1], min(n_frames, n))
+    frame_idx = np.searchsorted(elapsed, target_times, side="left")
+    frame_idx = np.clip(frame_idx, 0, n - 1)
 
     car_angle_0 = _marker_angle_deg(map_data["heading"][0])
     base_traces = [
@@ -175,7 +183,7 @@ def build_animated_map_figure(map_data, title="Lap Replay Telemetry", n_frames: 
 
     frames = []
     for fi in frame_idx:
-        t_at_frame = map_data["lap_time"] * (map_data["s"][fi] / map_data["s"][-1])
+        t_at_frame = map_data["elapsed_time"][fi]
         car_angle = _marker_angle_deg(map_data["heading"][fi])
         cur_v = map_data["v_kmh"][fi]
         cur_s = map_data["s"][fi]

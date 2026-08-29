@@ -142,7 +142,13 @@ with tab_single:
         v_max = result['v_profile'].max() * 3.6
         v_avg = (LAP_LENGTH / t) * 3.6
         v_min_corner = result['v_profile'].min() * 3.6
-        throttle_pct_avg = np.mean(result['throttle_pct']) if result.get('throttle_pct') is not None else 0.0
+        if result.get('throttle_pct') is not None:
+            full_throttle_pct = np.average(
+                result['throttle_pct'] >= 98.0,
+                weights=result['ds_arr'],
+            ) * 100.0
+        else:
+            full_throttle_pct = 0.0
 
         # Multi-Channel KPI Grid
         theme.render_readout_row([
@@ -150,7 +156,7 @@ with tab_single:
             ("Top Speed", f"{v_max:.1f}", "KM/H &bull; END OF STRAIGHT", theme.COLORS["cyan"]),
             ("Average Speed", f"{v_avg:.1f}", "KM/H &bull; CIRCUIT AVERAGE", theme.COLORS["amber"]),
             ("Min Corner Speed", f"{v_min_corner:.1f}", "KM/H &bull; TIGHTEST APEX", theme.COLORS["soft"]),
-            ("Full Throttle %", f"{throttle_pct_avg:.0f}%", "OF LAP DISTANCE", theme.COLORS["positive"]),
+            ("Full Throttle %", f"{full_throttle_pct:.0f}%", "OF LAP DISTANCE", theme.COLORS["positive"]),
         ])
 
         # Synchronized Multi-Channel Telemetry Chart
@@ -216,7 +222,7 @@ with tab_single:
         for ann in fig.layout.annotations:
             ann.font = dict(family=theme.FONT_TECH, color=theme.COLORS["text_muted"], size=12, weight=700)
             
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         # Corner Apex Speeds Breakdown Table
         st.markdown('<div class="section-title">Apex & Corner Telemetry Breakdown</div>', unsafe_allow_html=True)
@@ -295,7 +301,7 @@ with tab_compare:
         for ann in fig_cmp.layout.annotations:
             ann.font = dict(family=theme.FONT_TECH, color=theme.COLORS["text_muted"], size=12, weight=700)
 
-        st.plotly_chart(fig_cmp, use_container_width=True)
+        st.plotly_chart(fig_cmp, width="stretch")
     else:
         st.info("Click **⚡ Run Comparison Analysis** to evaluate both regulations side-by-side.")
 
@@ -392,7 +398,7 @@ with tab_custom:
                 xaxis_title="RACE LAP NUMBER",
                 yaxis_title="LAP TIME (SECONDS)",
             )
-            st.plotly_chart(fig_stint, use_container_width=True)
+            st.plotly_chart(fig_stint, width="stretch")
 
 
 # ========================================================
@@ -457,6 +463,6 @@ with tab_map:
         else:
             fig_map = build_animated_map_figure(map_data, title=f"{track_name.upper()} LAP REPLAY")
 
-        st.plotly_chart(fig_map, use_container_width=True)
+        st.plotly_chart(fig_map, width="stretch")
     else:
         st.info("Click **🗺️ Generate Circuit Map** to render the track GPS telemetry.")

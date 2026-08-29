@@ -109,9 +109,23 @@ def option_custom_strategy(car):
     print("(Using race-trim car: full-fuel start, race-mode tyres/engine --")
     print(" slower than option 1's qualifying pace by design.)")
     print(f"\nAvailable compounds: {list(COMPOUNDS.keys())}")
-    total_laps = int(input("Total race laps (e.g. 53 for Monza): ").strip())
+    try:
+        total_laps = int(input("Total race laps (e.g. 53 for Monza): ").strip())
+    except ValueError:
+        print("Race laps must be a whole number.")
+        return
+    if total_laps <= 0:
+        print("Race laps must be positive.")
+        return
 
-    n_stints = int(input("Number of stints (1 = no stops, 2 = one-stop, 3 = two-stop): ").strip())
+    try:
+        n_stints = int(input("Number of stints (1 = no stops, 2 = one-stop, 3 = two-stop): ").strip())
+    except ValueError:
+        print("Number of stints must be a whole number.")
+        return
+    if n_stints not in (1, 2, 3):
+        print("Number of stints must be 1, 2, or 3.")
+        return
     plan = []
     laps_remaining = total_laps
     for i in range(n_stints):
@@ -123,13 +137,16 @@ def option_custom_strategy(car):
             laps = laps_remaining
             print(f"  Stint {i+1} laps: {laps} (remaining laps, auto-filled)")
         else:
-            laps = int(input(f"  Stint {i+1} laps: ").strip())
+            try:
+                laps = int(input(f"  Stint {i+1} laps: ").strip())
+            except ValueError:
+                print("Stint length must be a whole number.")
+                return
+            if laps <= 0 or laps >= laps_remaining:
+                print(f"Stint length must be between 1 and {laps_remaining - 1} laps.")
+                return
         plan.append((compound, laps))
         laps_remaining -= laps
-
-    if laps_remaining != 0 and n_stints > 0:
-        # only matters if the last stint wasn't auto-filled correctly
-        pass
 
     res = simulate_race_strategy(TRACK, car, plan, total_laps, step=8.0, track_name=TRACK_NAME)
     t = res["total_time"]

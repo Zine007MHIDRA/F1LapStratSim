@@ -25,6 +25,10 @@ def pit_loss_for(track_name: str) -> float:
 def simulate_stint(segments, car: CarParams, compound_name: str, n_laps: int,
                     race_distance_at_stint_start: float = 0.0, step: float = 4.0):
     """Simulate n_laps on one tyre compound. Returns list of lap times (s) and total stint time."""
+    if compound_name not in COMPOUNDS:
+        raise ValueError(f"Unknown tyre compound: {compound_name!r}")
+    if n_laps <= 0:
+        raise ValueError(f"Stint length must be positive, got {n_laps}")
     compound = COMPOUNDS[compound_name]
     lap_length = total_length(segments)
     lap_times = []
@@ -52,8 +56,21 @@ def simulate_race_strategy(segments, car: CarParams, stint_plan, total_laps: int
     falling back to DEFAULT_PIT_STOP_LOSS_S if track_name is unknown/omitted).
     Returns total race time and full lap-by-lap breakdown.
     """
-    assert sum(n for _, n in stint_plan) == total_laps, \
-        f"Stint plan covers {sum(n for _, n in stint_plan)} laps, race is {total_laps} laps"
+    if total_laps <= 0:
+        raise ValueError(f"Race length must be positive, got {total_laps}")
+    if not stint_plan:
+        raise ValueError("A race strategy must contain at least one stint")
+    invalid_compounds = [name for name, _ in stint_plan if name not in COMPOUNDS]
+    if invalid_compounds:
+        raise ValueError(f"Unknown tyre compound(s): {invalid_compounds}")
+    invalid_lengths = [n for _, n in stint_plan if n <= 0]
+    if invalid_lengths:
+        raise ValueError(f"Every stint length must be positive, got {invalid_lengths}")
+    planned_laps = sum(n for _, n in stint_plan)
+    if planned_laps != total_laps:
+        raise ValueError(
+            f"Stint plan covers {planned_laps} laps, race is {total_laps} laps"
+        )
 
     if pit_loss_s is None:
         pit_loss_s = pit_loss_for(track_name) if track_name else DEFAULT_PIT_STOP_LOSS_S
