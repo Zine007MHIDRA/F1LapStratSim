@@ -503,6 +503,36 @@ def tyre_stress(track_name: Optional[str]) -> float:
     return TRACK_TYRE_STRESS.get(track_name, 1.0)
 
 
+# Championship race distance (laps) per circuit -- the real Grand Prix lap
+# count. Used to auto-populate the strategy planner / optimiser; the user can
+# still add or drop laps from this default.
+TRACK_RACE_LAPS: Dict[str, int] = {
+    "Monza":             53,
+    "Silverstone":       52,
+    "Spa-Francorchamps": 44,
+    "Monaco":            78,
+    "Suzuka":            53,
+    "Bahrain":           57,
+    "Red Bull Ring":     71,
+    "Interlagos":        71,
+    "COTA":              56,
+}
+
+# FIA race distance target: at least 305 km (Monaco historically the exception).
+_RACE_DISTANCE_M = 305_000.0
+
+
+def race_laps(track_name: Optional[str]) -> int:
+    """Real Grand Prix lap count for a circuit. Falls back to the number of
+    laps needed to cover ~305 km when the track isn't in TRACK_RACE_LAPS."""
+    if track_name in TRACK_RACE_LAPS:
+        return TRACK_RACE_LAPS[track_name]
+    segs = TRACKS.get(track_name)
+    if segs:
+        return max(10, round(_RACE_DISTANCE_M / total_length(segs)))
+    return 53
+
+
 def track_environment(track_name: Optional[str]) -> dict:
     """Ambient conditions for a circuit; ISA-ish sea-level defaults if unknown."""
     return TRACK_ENV.get(track_name, dict(altitude_m=100, track_temp_c=30.0, air_temp_c=20.0))

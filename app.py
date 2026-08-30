@@ -21,7 +21,7 @@ from strategy_optimizer import (
     find_best_strategy, format_plan,
     generate_1stop_plans, generate_2stop_plans,
 )
-from track_model import TRACKS, total_length
+from track_model import TRACKS, total_length, race_laps
 from tyre_model import COMPOUNDS
 from validation import validate_lap_result
 
@@ -37,6 +37,16 @@ theme.inject_css()
 MGUK_KW = {"2025": 120, "2026": 350}
 C = theme.COLORS
 CFG = theme.plotly_config()
+
+
+def _sync_race_laps(widget_key: str):
+    """Auto-populate a 'Total Race Laps' number_input with the selected track's
+    real Grand Prix distance, re-syncing whenever the track changes while
+    keeping any manual +/- the user made on the current track."""
+    guard = f"_racelaps_track_{widget_key}"
+    if st.session_state.get(guard) != track_name:
+        st.session_state[widget_key] = race_laps(track_name)
+        st.session_state[guard] = track_name
 
 
 def _spec_card(car_label, car, is_2026):
@@ -374,15 +384,24 @@ with tab_custom:
         "Models tyre grip decay, non-linear thermal cliffs and full-to-empty fuel burn-off.",
     )
 
+    _sync_race_laps("custom_laps_inp")
     with st.container(border=True):
         c_laps, c_stints = st.columns(2)
         with c_laps:
-            total_laps = st.number_input("Total Race Laps", 10, 80, 53, 1)
+            total_laps = st.number_input(
+                "Total Race Laps", 5, 90, step=1, key="custom_laps_inp",
+                help=f"Synced to the {track_name} GP distance — adjust as needed.",
+            )
         with c_stints:
             n_stints = st.selectbox(
                 "Stint Count", [1, 2, 3], index=1,
                 format_func=lambda x: f"{x} stint{'s' if x > 1 else ''} · {x-1} stop{'s' if x != 2 else ''}",
             )
+        _gp = race_laps(track_name)
+        st.caption(
+            f"Auto-synced to the {track_name} Grand Prix distance ({_gp} laps)."
+            + ("" if total_laps == _gp else f"  Adjusted: {total_laps - _gp:+d} laps.")
+        )
 
         compound_names = list(COMPOUNDS.keys())
         stint_inputs = []
@@ -467,10 +486,14 @@ with tab_opt:
         "Exhaustive search over every 1-stop and 2-stop compound permutation for the theoretical race-winning strategy.",
     )
 
+    _sync_race_laps("opt_laps_inp")
     with st.container(border=True):
         o1, o2, o3 = st.columns(3)
         with o1:
-            opt_laps = st.number_input("Total Race Laps", 10, 80, 53, key="opt_laps_inp")
+            opt_laps = st.number_input(
+                "Total Race Laps", 5, 90, step=1, key="opt_laps_inp",
+                help=f"Synced to the {track_name} GP distance — adjust as needed.",
+            )
         with o2:
             include_2stop = st.checkbox("Include 2-stop strategies", value=True)
         with o3:
@@ -482,7 +505,15 @@ with tab_opt:
     n_plans = len(generate_1stop_plans(opt_laps))
     if include_2stop:
         n_plans += len(generate_2stop_plans(opt_laps))
-    theme.chips([f"{n_plans} CANDIDATE STRATEGIES", (track_name.upper(), True), f"{opt_laps} LAPS"])
+    gp_laps = race_laps(track_name)
+    laps_chip = (f"{opt_laps} LAPS" if opt_laps == gp_laps
+                 else f"{opt_laps} LAPS ({opt_laps - gp_laps:+d} vs GP)")
+    theme.chips([
+        f"{n_plans} CANDIDATE STRATEGIES",
+        (track_name.upper(), True),
+        (laps_chip, opt_laps != gp_laps),
+        f"{gp_laps}-LAP GP DISTANCE",
+    ])
 
     if st.button("🏁 Execute Optimizer Search", key="opt_run_btn"):
         with st.spinner(f"Evaluating {n_plans} candidate strategies…"):
