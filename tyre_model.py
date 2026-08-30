@@ -42,20 +42,49 @@ from dataclasses import dataclass
 class TyreCompound:
     name: str
     base_grip: float          # relative to a common baseline (1.0 = medium reference)
-    deg_rate_per_lap: float   # linear grip loss per lap
+    deg_rate_per_lap: float   # linear grip loss per lap (thermal plateau phase)
     cliff_lap: int            # lap number where degradation accelerates
     cliff_severity: float     # extra grip loss per lap after cliff_lap
     optimal_stint_laps: int   # rough real-world usable stint length
+    warmup_laps: float = 2.0  # laps to reach peak grip from cold
+    warmup_penalty: float = 0.020    # grip deficit on the very first flying lap
+    thermal_sensitivity: float = 1.0  # how strongly this compound reacts to a
+    #                                   high-energy circuit (softs overheat fastest)
+    sub_compounds: str = ""   # FIA C-grade range this maps to (cosmetic)
 
 
+# Non-linear degradation: cold warm-up phase -> linear thermal plateau ->
+# steep thermal cliff. deg_rate / cliff constants stay as previously
+# sensitivity-checked against this sim's own grip response (~0.35 s/lap per
+# 1% grip); warm-up and thermal_sensitivity are additive on top.
 COMPOUNDS = {
-    "soft": TyreCompound("soft", base_grip=1.010, deg_rate_per_lap=0.0020,
-                          cliff_lap=15, cliff_severity=0.0080, optimal_stint_laps=16),
+    "soft":   TyreCompound("soft",   base_grip=1.010, deg_rate_per_lap=0.0020,
+                           cliff_lap=15, cliff_severity=0.0080, optimal_stint_laps=16,
+                           warmup_laps=1.0, warmup_penalty=0.012, thermal_sensitivity=1.35,
+                           sub_compounds="C3 / C4 / C5"),
     "medium": TyreCompound("medium", base_grip=1.000, deg_rate_per_lap=0.0010,
-                            cliff_lap=26, cliff_severity=0.0045, optimal_stint_laps=27),
-    "hard": TyreCompound("hard", base_grip=0.990, deg_rate_per_lap=0.0005,
-                          cliff_lap=38, cliff_severity=0.0028, optimal_stint_laps=40),
+                           cliff_lap=26, cliff_severity=0.0045, optimal_stint_laps=27,
+                           warmup_laps=2.0, warmup_penalty=0.018, thermal_sensitivity=1.10,
+                           sub_compounds="C2 / C3"),
+    "hard":   TyreCompound("hard",   base_grip=0.990, deg_rate_per_lap=0.0005,
+                           cliff_lap=38, cliff_severity=0.0028, optimal_stint_laps=40,
+                           warmup_laps=3.0, warmup_penalty=0.028, thermal_sensitivity=0.85,
+                           sub_compounds="C1 / C2"),
+    # Wet-weather compounds. This sim has no wet-track model, so on a DRY
+    # circuit they simply read as slow, high-deg options (which is correct --
+    # nobody runs inters/wets on a dry line). Present so the planner / race
+    # sim accept them for wet-race what-ifs.
+    "inter":  TyreCompound("inter",  base_grip=0.930, deg_rate_per_lap=0.0060,
+                           cliff_lap=18, cliff_severity=0.0090, optimal_stint_laps=20,
+                           warmup_laps=1.0, warmup_penalty=0.015, thermal_sensitivity=1.5,
+                           sub_compounds="Cinturato Green"),
+    "wet":    TyreCompound("wet",    base_grip=0.870, deg_rate_per_lap=0.0035,
+                           cliff_lap=28, cliff_severity=0.0060, optimal_stint_laps=30,
+                           warmup_laps=1.0, warmup_penalty=0.010, thermal_sensitivity=1.6,
+                           sub_compounds="Cinturato Blue"),
 }
+
+DRY_COMPOUNDS = ("soft", "medium", "hard")
 
 
 MIN_GRIP_FLOOR = 0.75  # a real tyre is essentially undriveable well before it
@@ -67,13 +96,31 @@ MIN_GRIP_FLOOR = 0.75  # a real tyre is essentially undriveable well before it
                         # sensitivity described above.
 
 
-def grip_multiplier(compound: TyreCompound, laps_on_tyre: int) -> float:
-    """Returns a multiplier to apply to car.tyre_mu. 1.0 = fresh baseline grip."""
-    linear_loss = compound.deg_rate_per_lap * laps_on_tyre
+def grip_multiplier(compound: TyreCompound, laps_on_tyre: int,
+                    thermal_load: float = 1.0) -> float:
+    """Multiplier to apply to car.tyre_mu. 1.0 = fresh, in-window baseline grip.
+
+    Phases:
+      * WARM-UP   -- lap 1 starts warmup_penalty below peak, recovering
+                     linearly over `warmup_laps`.
+      * PLATEAU   -- linear deg_rate_per_lap loss, amplified on high-energy
+                     circuits by thermal_load * thermal_sensitivity.
+      * CLIFF     -- past cliff_lap, cliff_severity adds on top (also
+                     thermally amplified) -- the steep drop-off.
+
+    thermal_load: 1.0 = neutral circuit; >1 = high lateral-energy /
+    traction-heavy / hot track (Bahrain, Suzuka); <1 = low-energy (Monaco).
+    """
+    thermal = 1.0 + (thermal_load - 1.0) * compound.thermal_sensitivity
+    thermal = max(thermal, 0.5)
+
+    warmup_loss = compound.warmup_penalty * max(0.0, 1.0 - (laps_on_tyre - 1) / max(compound.warmup_laps, 1e-6))
+    linear_loss = compound.deg_rate_per_lap * laps_on_tyre * thermal
     cliff_loss = 0.0
     if laps_on_tyre > compound.cliff_lap:
-        cliff_loss = compound.cliff_severity * (laps_on_tyre - compound.cliff_lap)
-    return max(compound.base_grip - linear_loss - cliff_loss, MIN_GRIP_FLOOR)
+        cliff_loss = compound.cliff_severity * (laps_on_tyre - compound.cliff_lap) * thermal
+
+    return max(compound.base_grip - warmup_loss - linear_loss - cliff_loss, MIN_GRIP_FLOOR)
 
 
 if __name__ == "__main__":

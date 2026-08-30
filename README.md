@@ -1,25 +1,39 @@
 # F1 Lap Time + Strategy Simulator
 
-A point-mass vehicle dynamics simulator for F1 lap times, tyre degradation,
-and pit strategy optimization — built for Monza, structured so any track
-can be added.
+An energy-constrained point-mass vehicle dynamics simulator for F1 lap times,
+tyre degradation, and pit strategy optimization. Nine Grand Prix circuits,
+2025 and 2026 power-unit regulations, and an explicit ERS (hybrid energy)
+model that reproduces end-of-straight "clipping".
 
 ## What's in here
 
 | File | What it does |
 |---|---|
-| `track_model.py` | Defines each track as a sequence of straights/corners, with turn direction (Monza + Silverstone built in) |
+| `track_model.py` | 9 circuits as straight/corner segment lists with turn direction, DRS zones, pit loss, ambient env, tyre-stress and pole benchmarks |
 | `track_geometry.py` | Converts a track's segments into 2D (x, y) coordinates for the map view |
-| `car_model.py` | Point-mass car physics: engine, drag, downforce, tyre grip |
-| `lap_sim.py` | Forward-backward solver — turns track+car into a speed trace and lap time |
-| `tyre_model.py` | Grip degradation curves per compound (soft/medium/hard) |
-| `race_sim.py` | Runs a full stint/race lap-by-lap with degrading tyres |
+| `car_model.py` | Point-mass car physics: hybrid powertrain (ICE + MGU-K), real air density, drag/downforce, load-sensitive tyre grip, 5.5 g brake ceiling |
+| `lap_sim.py` | Energy-constrained forward-backward solver → speed trace, sector times, G-force vectors, ERS diagnostics |
+| `tyre_model.py` | Warm-up → thermal-plateau → cliff degradation per compound (soft/medium/hard + inter/wet), circuit thermal-load sensitive |
+| `race_sim.py` | Runs a full stint/race lap-by-lap with degrading tyres and fuel burn-off |
 | `strategy_optimizer.py` | Brute-force search over pit strategies to find the fastest |
 | `map_viz.py` | Builds the speed-colored top-down track map + animated lap replay |
 | `main.py` | **Interactive CLI menu — run this** |
 | `app.py` | **Interactive web app (Streamlit) — run this for the browser version** |
-| `theme.py` | Visual identity — dark timing-tower theme, CSS injection, readout cards |
-| `calibrate_with_fastf1.py` | Compares the sim against real F1 telemetry (run locally, needs internet) |
+| `theme.py` | Visual identity — dark pit-wall theme, CSS injection, HUD components, Plotly theme |
+| `validate_fastf1.py` | Multi-circuit calibration harness: sim vs FastF1 telemetry, reports lap-time / top-speed / speed-trace MAE (dry-run mode works offline) |
+| `calibrate_with_fastf1.py` | Single-circuit interactive telemetry overlay (run locally, needs internet) |
+
+## Circuits
+
+FastF1-calibrated (within ~0.6 s of real pole): **Monza, Silverstone,
+Spa-Francorchamps**.
+
+Ballpark (representative geometry + DRS + pit loss; per-track aero presets
+are `# TODO calibrate` markers — finish with `validate_fastf1.py` locally):
+**Monaco, Suzuka, Bahrain, Red Bull Ring, Interlagos, COTA**.
+
+Current dry-run lap-time MAE vs `TRACK_POLE_BENCHMARKS`: ~1.0 s (2025),
+~1.1 s (2026). Run `python validate_fastf1.py` for the live table.
 
 ## Car generations supported
 
@@ -28,11 +42,86 @@ The simulator supports two car "eras", both track-specific (see
 
 - **`car_2025(track_name)`** — fixed-wing car (pre-2026 regs).
 - **`car_2026(track_name)`** — current active-aero regs. Models Z-mode (high
-  downforce, used in corners) and X-mode (low drag, used on straights) as
-  genuinely different aero states, plus the Manual Override MGU-K boost.
+  downforce, corners) and X-mode (low drag, straights) as genuinely
+  different aero states, a 400 kW ICE + 350 kW MGU-K split, and **no MGU-H**
+  so the energy store depletes and the car clips on long straights.
 
 `main.py` and `app.py` both ask which track first, then pass it into the car
 factory automatically.
+
+## Qualifying trim vs. race trim
+
+Both car factories take a `trim` argument:
+
+- **`trim="qualifying"`** (default) — light fuel (15kg), peak tyre grip,
+  full engine mode. This is what's tuned against real pole times (see
+  "Cross-track calibration" below), and what the Single Lap tab / Track
+  Map use.
+- **`trim="race"`** — full race-start fuel load (110kg for 2025, 90kg for
+  2026), and slightly more conservative tyre grip and engine power,
+  representing race-mode running rather than a single qualifying-spec hot
+  lap. Aero (`CdA`/`ClA`) and gear-limited top speed are unchanged between
+  the two trims — a team's wing choice and gear ratios don't change between
+  qualifying and the race, only fuel load and how hard the car is pushed.
+
+This exists because reusing the qualifying-tuned car across a whole
+race distance (as earlier versions of this project did) meant the
+strategy optimizer and custom-strategy simulator were running
+unrealistically fast — a car that's light enough and pushed hard enough to
+match a real pole time isn't sustainable for 50+ laps. `race_sim.py` (and
+therefore both the Custom Strategy and Strategy Optimizer tabs) now uses
+`trim="race"`; the Single Lap tab and Track Map still use `trim="qualifying"`.
+
+The resulting gap is a believable 4-5 seconds slower per lap at race-start
+fuel vs. qualifying pace across all three tracks and both car generations —
+consistent with the real-world rule of thumb that a full tank costs
+roughly 3-5s a lap at these track lengths. As a sanity check, this also
+means race-trim's first-lap pace should land a bit slower than the real
+fastest lap of the actual race (which happens on low fuel, late in a
+stint) — which it does, by 0.5-2.7s depending on track, exactly the
+direction and rough scale you'd expect.
+
+**What this doesn't fix on its own**: tyre degradation curves needed their
+own separate calibration pass — see "Tyre degradation calibration" below.
+
+## Tyre degradation calibration
+
+`tyre_model.py`'s degradation constants (`deg_rate_per_lap`,
+`cliff_severity`, `base_grip` per compound) went through the same kind of
+fix as qualifying-vs-race trim above: an earlier version produced a
+genuinely broken result — a strategy running softs 26 laps (well past
+their real ~15-18 lap life) could produce a single lap over 50 seconds
+slower than a fresh lap, nothing like real F1.
+
+The root cause: `grip_multiplier` feeds directly into the car's `tyre_mu`,
+and this project's physics engine turns out to be *far* more sensitive to
+that value than the original constants assumed — roughly **0.35-0.4
+seconds of lap time per 1% of grip lost** near a fresh tyre (measured
+directly by running `simulate_lap()` at a sweep of `grip_multiplier`
+values and reading the actual resulting lap time). The original constants
+read more like "the deg_rate value directly in seconds," which is off by
+roughly two orders of magnitude given that real sensitivity.
+
+Fixed by reverse-engineering the compound constants FROM the sim's
+measured sensitivity, targeting realistic real-world figures:
+- Fresh-tyre performance gap between compounds: ~0.3-0.4s per compound
+  step (~0.6-0.8s soft-to-hard) — matches how Pirelli spaces compounds in
+  reality.
+- Pre-cliff degradation: soft ~0.07s/lap, medium ~0.04s/lap, hard
+  ~0.02s/lap — all checked against actual simulated lap times, not just
+  the raw grip-multiplier curve.
+- Post-cliff: still a real, felt step change, but bounded to a believable
+  range instead of runaway — even softs pushed to lap 40 (absurdly
+  overextended) now cost +11.8s cumulative, not +50s on a single lap.
+- Raised `MIN_GRIP_FLOOR` from 0.35 to 0.75 — a real tyre is essentially
+  undriveable well before it would mathematically reach 35% of peak grip;
+  a team pits long before that territory, and the old floor was mostly
+  there to (partially) contain the runaway behavior this fix addresses
+  more directly.
+
+This is still a sensitivity-checked first pass, not fitted to real stint
+data — see "Known simplifications" below for the natural next step
+(fitting these constants directly from real FastF1 stint data instead).
 
 ## Cross-track calibration
 
@@ -274,6 +363,123 @@ standard surveying "closing error" adjustment).
 4. That's it — `main.py` and `app.py` both pick up new tracks automatically
    from the `TRACKS` dict.
 
+## Running the web app locally
+
+```bash
+streamlit run app.py
+```
+
+Opens at `http://localhost:8501` — sidebar picks the car generation, and
+three tabs cover single-lap simulation, custom strategy testing, and the
+strategy optimizer, all backed by the same physics engine as the CLI.
+
+## Deploying for free (Streamlit Community Cloud)
+
+This gets you a public URL (e.g. `yourname-f1sim.streamlit.app`) at zero
+cost — no credit card, no server to manage. Steps:
+
+1. **Push this project to GitHub.**
+   ```bash
+   git init
+   git add .
+   git commit -m "F1 lap + strategy simulator"
+   git branch -M main
+   git remote add origin https://github.com/<your-username>/f1sim.git
+   git push -u origin main
+   ```
+   (Create the empty repo on GitHub first if you haven't — github.com/new)
+
+2. **Go to [share.streamlit.io](https://share.streamlit.io)** and sign in
+   with your GitHub account (free).
+
+3. Click **"New app"**, pick your `f1sim` repo, branch `main`, and set the
+   main file path to `app.py`.
+
+4. Click **Deploy**. First build takes a minute or two (installs
+   `requirements.txt`); after that it's live at a public URL you can share.
+
+5. **Updating later:** every time you `git push` to `main`, the deployed app
+   auto-redeploys. No redeployment step needed.
+
+**Free tier limits to know about:** Streamlit Community Cloud apps sleep
+after a period of inactivity and wake up on the next visit (a few seconds'
+delay), and there's a modest RAM ceiling (~1GB) — fine for this project, but
+if you ever add heavier simulations (more tracks, wider strategy search
+grids), keep the `step` slider defaults conservative in `app.py` so a single
+optimizer run doesn't time out or exceed memory on the free tier.
+
+**Alternative free host:** [Hugging Face Spaces](https://huggingface.co/spaces)
+also hosts Streamlit apps for free — create a Space, choose the Streamlit SDK,
+and push the same files there instead (or in addition).
+
+## Advanced physics upgrades (energy-constrained rework)
+
+The solver was extended from a pure power-vs-grip model to an
+**energy-constrained** one, and the car model split the powertrain and made
+the air real.
+
+### Hybrid powertrain + ERS energy management (`car_model.py`, `lap_sim.py`)
+
+`engine_power` (one combined number) was split into `ice_power_w` +
+`mguk_power_w`, and `lap_sim` now runs an **ERS energy pass**
+(`_integrate_ers`) after the unconstrained speed profile converges:
+
+- walks one lap from the start line tracking battery **state-of-charge**;
+- deploys MGU-K under acceleration, harvests
+  `E_regen = η · P_regen · dt` under braking (plus light lift-and-coast
+  harvest on 2026 cruise sections);
+- **2025**: MGU-H keeps the store topped, so the binding limit is the
+  **4 MJ/lap deployment budget** — clipping appears late in the lap once
+  it's spent;
+- **2026**: no MGU-H, so the ~4 MJ store genuinely depletes — heavy clipping
+  on the long straights (Kemmel, Bahrain / COTA back straights);
+- the resulting per-point MGU-K power (0 W when clipped) is fed back into a
+  re-converge; each pass can only slow the car, so it's monotone.
+
+The energy pass is automatic for single-lap / telemetry runs and **skipped
+for race-stint / optimizer runs** (`compute_pedals=False`) — sustainable
+lap-after-lap deployment makes "full budget every lap" the right race model,
+and the extra passes would 2-3× the optimizer cost.
+
+`simulate_lap()` now also returns `sector_times`, `g_lat` / `g_long` /
+`g_total` (units of g), `speed_trap_kmh`, per-straight `straight_speeds`,
+`v_profile_free` (the unconstrained profile), and an `ers` diagnostics dict.
+
+### Real air density (`car_model.air_density`)
+
+`AIR_DENSITY = 1.225` was a fallback; `CarParams.rho` is now computed
+per-circuit from the ISA barometric formula using
+`TRACK_ENV[track].altitude_m` and a representative `track_temp_c`. Both drag
+and downforce scale with it, so Interlagos (~785 m, hot → ρ≈0.99) is
+visibly more power- and grip-limited than sea-level Monaco.
+
+### Braking, tyres, DRS
+
+- `max_brake_decel` is capped at `CarParams.max_decel_g` (5.5 g) — a hard
+  carbon-brake ceiling for the low-speed regime.
+- `tyre_model.grip_multiplier` gained a **cold warm-up phase** and a
+  `thermal_load` argument; `race_sim` passes `track_model.tyre_stress(track)`
+  so high-energy circuits (Bahrain, Suzuka) degrade tyres faster. Inter/wet
+  compounds are defined (read as slow on a dry line, as they should).
+- DRS zones are now **explicit** (`Segment.drs`), with the old
+  "long straight" heuristic kept as a fallback for tracks that flag none.
+
+### What did NOT change
+
+The friction-ellipse exponent (`mu_ellipse_p = 1.6`) and load-sensitivity
+form (`mu_eff = mu · (N/mg)^-0.05`) are kept as-is — they already express
+the requested physics and are the calibrated values; the spec's circle
+(p = 2) and linear `mu = mu0 - k·Fz` forms would be a regression here.
+Elevation feeds air density but not yet a slope-force term.
+
+### Recalibration note
+
+The powertrain split + real air density + clipping shifted every lap time,
+so the per-track aero presets were re-tuned. Monza / Silverstone / Spa land
+within ~0.6 s of their real poles (was ~0.1 s — the FastF1 loop in
+`validate_fastf1.py --fastf1` is needed to close that last bit); the 2026
+gap to 2025 (~+1 s at those tracks) now comes out of the energy model
+rather than a hand-set delta.
 
 ## Known simplifications (roadmap for improvement)
 
@@ -287,13 +493,13 @@ standard surveying "closing error" adjustment).
   and imperfections a "theoretically optimal" derived trace won't show. A
   cruise-throttle estimate (partial throttle to balance drag at a constant
   cornering speed) fills in points where accel is ~0, rather than showing 0%.
-- **DRS zones are a geometric heuristic, not real telemetry** — any straight
-  segment longer than 150m becomes DRS-eligible once the car's own speed
-  passes 200 km/h. Real DRS zones have specific FIA-defined activation/
-  deactivation points that don't perfectly track "long enough straight,
-  fast enough already." Pulling real DRS zone boundaries from FastF1
-  telemetry (it has a DRS channel) would fix this properly — same
-  local-only-execution caveat as `calibrate_with_fastf1.py`.
+- **DRS zones are now explicit but hand-placed** — each track flags its
+  activation straights via `Segment.drs` (see `drs_zone_count()`), matching
+  the real number of zones per circuit. They're still placed by hand, not
+  pulled from FastF1's DRS telemetry channel, and activation is still gated
+  on a 200 km/h speed threshold rather than exact FIA detection points. The
+  old "straight longer than 150 m" heuristic remains as a fallback for any
+  track that flags no zones.
 - **Load-sensitivity and friction-ellipse constants are estimated, not
   fitted** — `mu_load_sensitivity=-0.05` and `mu_ellipse_p=1.6` are
   reasonable literature-typical values, not fitted to this project's real
@@ -301,12 +507,13 @@ standard surveying "closing error" adjustment).
   Once real telemetry is available locally, these are two more parameters
   worth fitting alongside the aero constants.
 
-- **Race strategy sims use qualifying-trim fuel/grip for every lap**
-  (see "Cross-track calibration" above) — `car_2025()`/`car_2026()` are
-  tuned to match real pole times on a light qualifying fuel load, but
-  `race_sim.py` reuses that same spec across a full race distance. A
-  dedicated race-trim car (heavier fuel, slightly lower peak tyre grip)
-  would make strategy-optimizer results closer to realistic full-race pace.
+- **Tyre degradation curves are sensitivity-checked, not fitted to real
+  data** — see "Tyre degradation calibration" above. `deg_rate_per_lap`/
+  `cliff_severity`/`base_grip` in `tyre_model.py` were reverse-engineered
+  from the sim's own measured grip sensitivity to hit realistic real-world
+  per-lap-time targets, but they're still a first pass, not fitted against
+  real stint data. FastF1 gives real lap times + tyre life per stint, which
+  would let you fit these directly from real races.
 
 - **Monza's tuned aero doesn't reflect real relative downforce levels**
   (see "Cross-track calibration" above) — it's compensating for the
@@ -315,19 +522,22 @@ standard surveying "closing error" adjustment).
   be shorter/more realistic (while still closing the geometry loop) and
   re-tuning `ClA` down afterward would fix this properly.
 - No weight transfer / suspension model (point-mass only)
-- No wet-weather tyre compounds or track evolution
+- Inter/wet compounds exist but there is **no wet-track model** — they only
+  read as slow dry options; no track evolution / rubbering-in
 - No traffic / overtaking / safety car modeling in the strategy optimizer
-- Pit stop loss is a fixed constant (`PIT_STOP_LOSS_S` in `race_sim.py`),
-  not track-specific pit lane geometry
-- Tyre degradation curves are illustrative, not fitted to real stint data yet
-  (FastF1 gives you real lap times + tyre life per stint — a good next
-  project is fitting `deg_rate_per_lap` per compound from real races)
-- **2026 "clipping" not modeled**: real 2026 cars show the MGU-K battery
-  depleting mid-straight, so top speed actually *drops* before the braking
-  zone on long straights instead of monotonically rising. The current model
-  only tapers override power by speed, not by cumulative energy deployed —
-  adding a per-lap energy budget (deployed Joules vs available battery
-  capacity) is the natural next step for 2026 accuracy
+- Pit loss is now track-specific (`TRACK_PIT_LOSS_S` per circuit) but still a
+  single number, not simulated pit-lane geometry / speed-limit length
+- Tyre degradation curves (incl. the new warm-up and thermal-load terms) are
+  sensitivity-checked, not fitted to real stint data — FastF1 lap times +
+  tyre life per stint would let you fit `deg_rate_per_lap` /
+  `thermal_sensitivity` per compound directly
+- **2026 "clipping" is now modeled** (see "Advanced physics upgrades"):
+  `lap_sim._integrate_ers` tracks battery SOC around the lap and drops
+  MGU-K power to zero once the energy runs out, so 2026 cars derate toward
+  ICE-only power at the end of long straights. Still first-pass: the
+  deploy/harvest strategy is greedy (deploy whenever accelerating) rather
+  than an optimal energy-management solve, and the effective store size
+  (`battery_capacity_j`) is a calibration knob, not a measured value.
 - **Track maps are schematic, not survey-accurate** (see "Track map & lap
   replay" above) — corner angles are hand-tuned to close the loop cleanly,
   not measured from real track geometry

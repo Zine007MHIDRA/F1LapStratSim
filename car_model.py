@@ -40,8 +40,32 @@ from dataclasses import dataclass, field
 from typing import Optional
 import numpy as np
 
-G = 9.81            # m/s^2
-AIR_DENSITY = 1.225  # kg/m^3 (sea level, ~20C — good enough for Monza)
+from track_model import track_environment
+
+G = 9.81                    # m/s^2, gravitational acceleration
+AIR_DENSITY = 1.225         # kg/m^3, ISA sea level @ 15 C (fallback default)
+R_SPECIFIC_AIR = 287.05     # J/(kg.K), specific gas constant for dry air
+P0_SEA_LEVEL = 101_325.0    # Pa
+
+
+def air_density(track_temp_c: float = 15.0, altitude_m: float = 0.0) -> float:
+    """Real air density rho [kg/m^3] from surface temperature and elevation.
+
+    Static pressure follows the ISA barometric formula up to the troposphere:
+        p(h) = p0 * (1 - 2.25577e-5 * h) ** 5.25588        [Pa]
+    and density from the ideal gas law with the *track surface* air temperature
+    (the boundary layer the car actually runs in is hotter than the reported
+    air temp, so track_temp_c is the right input here):
+        rho = p / (R_specific * T),   T = track_temp_c + 273.15   [K]
+
+    Worked examples:
+      Monza    (162 m, 42 C track): ~1.10 kg/m^3   (-10 % vs 1.225 -> less drag)
+      Interlagos (785 m, 45 C):     ~0.99 kg/m^3   (-19 %, notably power/grip limited)
+      Monaco   (10 m, 40 C):        ~1.11 kg/m^3
+    """
+    p = P0_SEA_LEVEL * (1.0 - 2.25577e-5 * max(altitude_m, 0.0)) ** 5.25588
+    t_kelvin = track_temp_c + 273.15
+    return p / (R_SPECIFIC_AIR * t_kelvin)
 
 
 @dataclass
@@ -100,6 +124,39 @@ class CarParams:
     # to unrealistic speeds (400+ km/h) that no real F1 car reaches. Set to
     # None to disable (no cap).
     top_speed_kmh: Optional[float] = None
+
+    # --- Air density (set per-track from car_model.air_density()) ------------
+    # Both drag and downforce scale linearly with rho, so hot/high circuits
+    # (Interlagos ~0.99, Mexico would be ~0.9) meaningfully reduce grip AND
+    # drag relative to a cool sea-level track.
+    rho: float = AIR_DENSITY
+
+    # --- Hybrid powertrain / ERS energy model ------------------------------
+    # When ice_power_w is set, the solver uses an explicit ICE + MGU-K split
+    # with a lap-level energy budget (see lap_sim._integrate_ers), producing
+    # end-of-straight "clipping" once deployment energy runs out. When it is
+    # None, the legacy combined `engine_power` (+ manual override taper) path
+    # is used instead, preserving older ad-hoc CarParams() behaviour.
+    ice_power_w: Optional[float] = None          # combustion-engine crank power
+    mguk_power_w: float = 120_000.0              # MGU-K deployment power (reg cap)
+    mguk_deploy_budget_j: Optional[float] = 4_000_000.0
+    #   per-LAP MGU-K deployment limit. 2025 reg = 4 MJ/lap; MGU-H keeps the
+    #   store topped so this budget, not the battery, is the binding limit.
+    #   Set None for 2026 (no per-lap cap -- deployment is battery-SOC limited).
+    battery_capacity_j: float = 4_000_000.0      # usable energy store capacity
+    battery_start_j: Optional[float] = None      # SOC at start line; None => full
+    regen_power_w: float = 120_000.0             # max harvest power under braking
+    regen_efficiency: float = 0.85               # brake energy -> stored energy
+    has_mgu_h: bool = True                       # True (2025): MGU-H tops the ES
+    #                                              continuously. False (2026):
+    #                                              removed -> SOC can be depleted.
+    ers_enabled: bool = True                     # master switch for the energy pass
+
+    # --- Braking limit ----------------------------------------------------
+    # Carbon-carbon discs + slick grip + downforce let modern F1 cars pull
+    # ~5-6 g of deceleration at high speed; grip/aero already bound this in
+    # max_brake_decel, and this is a hard ceiling for the low-speed regime.
+    max_decel_g: float = 5.5
 
     def aero_params(self, mode: str):
         """Returns (CdA, ClA) for the requested aero mode ('corner' or 'straight').
@@ -160,29 +217,45 @@ def car_2025(track_name: str = "Monza", trim: str = "qualifying") -> CarParams:
     See car_2025_race_notes / README for trim="race" calibration.
     """
     # top_speed_kmh: real gear-limited terminal speeds (with DRS), not
-    # arbitrary tuning knobs -- Monza/Silverstone/Spa top speeds in recent
-    # seasons cluster in these ranges. Spa's real top speed is lower than
-    # its huge Kemmel Straight might suggest because the straight is
-    # significantly uphill (not modeled here -- see README's elevation
-    # caveat), so its real-world cap partly stands in for that missing effect.
+    # arbitrary tuning knobs. Spa's real top speed is lower than its huge
+    # Kemmel Straight might suggest because that straight is significantly
+    # uphill (not modeled), so its cap partly stands in for that.
+    #
+    # CALIBRATION STATUS: Monza / Silverstone / Spa are FastF1-tuned (~0.1s).
+    # The other six are BALLPARK ONLY -- TODO: tune CdA / ClA / top_speed_kmh
+    # against TRACK_POLE_BENCHMARKS with validate_fastf1.py locally.
     presets = {
         "Monza":             dict(CdA=0.80, ClA=3.20, top_speed_kmh=372.0),
         "Silverstone":       dict(CdA=0.65, ClA=2.65, top_speed_kmh=348.0),
-        "Spa-Francorchamps": dict(CdA=0.55, ClA=1.30, top_speed_kmh=345.0),
+        "Spa-Francorchamps": dict(CdA=0.55, ClA=1.38, top_speed_kmh=345.0),
+        "Monaco":            dict(CdA=1.05, ClA=3.95, top_speed_kmh=295.0),   # TODO calibrate
+        "Suzuka":            dict(CdA=0.78, ClA=3.05, top_speed_kmh=322.0),   # TODO calibrate
+        "Bahrain":           dict(CdA=0.70, ClA=3.05, top_speed_kmh=330.0),   # TODO calibrate
+        "Red Bull Ring":     dict(CdA=0.60, ClA=2.35, top_speed_kmh=330.0),   # TODO calibrate
+        "Interlagos":        dict(CdA=0.80, ClA=2.95, top_speed_kmh=320.0),   # TODO calibrate
+        "COTA":              dict(CdA=0.82, ClA=3.10, top_speed_kmh=330.0),   # TODO calibrate
     }
     aero = presets.get(track_name, presets["Monza"])
+    env = track_environment(track_name)
     if trim == "race":
         fuel_mass, fuel_burn_rate = 110.0, 0.30
-        engine_power, tyre_mu = 750_000.0, 1.75
+        ice_power_w, tyre_mu = 630_000.0, 1.75
     else:
         fuel_mass, fuel_burn_rate = 15.0, 0.30
-        engine_power, tyre_mu = 780_000.0, 1.90
+        ice_power_w, tyre_mu = 660_000.0, 1.90
     return CarParams(
         mass_empty=798.0, fuel_mass=fuel_mass, fuel_burn_rate=fuel_burn_rate,
-        engine_power=engine_power, drivetrain_efficiency=0.90,
+        engine_power=ice_power_w + 120_000.0,   # combined figure for display/legacy
+        drivetrain_efficiency=0.90,
         CdA=aero["CdA"], ClA=aero["ClA"], active_aero=False, manual_override=False,
         drs_available=True, top_speed_kmh=aero["top_speed_kmh"],
         tyre_mu=tyre_mu, rolling_resistance_coeff=0.015,
+        rho=air_density(env["track_temp_c"], env["altitude_m"]),
+        # 2025 hybrid: ~560-660 kW ICE + 120 kW MGU-K (reg cap), 4 MJ/lap
+        # deployment limit, MGU-H keeps the store topped between deploys.
+        ice_power_w=ice_power_w, mguk_power_w=120_000.0,
+        mguk_deploy_budget_j=4_000_000.0, battery_capacity_j=4_000_000.0,
+        regen_power_w=120_000.0, regen_efficiency=0.85, has_mgu_h=True,
     )
 
 
@@ -210,24 +283,45 @@ def car_2026(track_name: str = "Monza", trim: str = "qualifying") -> CarParams:
     dominates and undoes the cornering penalty, landing Spa unrealistically
     fast relative to Monza/Silverstone.
     """
+    # CALIBRATION STATUS: Silverstone / Spa are FastF1-tuned; Monza is an
+    # estimate (2026 race not yet run). The other six are BALLPARK ONLY --
+    # TODO: tune corner_ClA / straight_CdA / top_speed_kmh locally.
     presets = {
         "Monza":             dict(corner_ClA=2.44, straight_CdA=0.65, top_speed_kmh=368.0),
         "Silverstone":       dict(corner_ClA=2.07, straight_CdA=0.55, top_speed_kmh=344.0),
         "Spa-Francorchamps": dict(corner_ClA=0.62, straight_CdA=0.55, top_speed_kmh=340.0),
+        "Monaco":            dict(corner_ClA=2.85, straight_CdA=0.95, top_speed_kmh=292.0),  # TODO
+        "Suzuka":            dict(corner_ClA=2.35, straight_CdA=0.62, top_speed_kmh=318.0),  # TODO
+        "Bahrain":           dict(corner_ClA=2.10, straight_CdA=0.58, top_speed_kmh=324.0),  # TODO
+        "Red Bull Ring":     dict(corner_ClA=1.85, straight_CdA=0.50, top_speed_kmh=326.0),  # TODO
+        "Interlagos":        dict(corner_ClA=2.25, straight_CdA=0.64, top_speed_kmh=316.0),  # TODO
+        "COTA":              dict(corner_ClA=2.40, straight_CdA=0.66, top_speed_kmh=326.0),  # TODO
     }
     aero = presets.get(track_name, presets["Monza"])
+    env = track_environment(track_name)
     if trim == "race":
         fuel_mass, fuel_burn_rate = 90.0, 0.28
-        engine_power, tyre_mu = 750_000.0, 1.72
+        ice_power_w, tyre_mu = 400_000.0, 1.72
     else:
         fuel_mass, fuel_burn_rate = 15.0, 0.28
-        engine_power, tyre_mu = 780_000.0, 1.85
+        ice_power_w, tyre_mu = 400_000.0, 1.85
     return CarParams(
         mass_empty=768.0,          # official 2026 minimum weight
         fuel_mass=fuel_mass,
         fuel_burn_rate=fuel_burn_rate,
-        engine_power=engine_power,
+        engine_power=ice_power_w + 350_000.0,   # combined figure for display/legacy
         drivetrain_efficiency=0.90,
+        rho=air_density(env["track_temp_c"], env["altitude_m"]),
+        # 2026 hybrid: ~50/50 split -- 400 kW ICE + 350 kW MGU-K, NO MGU-H, so
+        # the 4 MJ energy store is genuinely depletable and the car derates
+        # ("clips") toward ICE-only power at the end of long straights.
+        ice_power_w=ice_power_w, mguk_power_w=350_000.0,
+        mguk_deploy_budget_j=None,          # no per-lap cap -- SOC is the limit
+        # 4 MJ store, but drivers manage deployment + lift-and-coast so the
+        # effective per-lap energy is higher; ~5.4 MJ reproduces the observed
+        # real 2025->2026 pole delta (~+3 to +4 s) rather than over-clipping.
+        battery_capacity_j=5_400_000.0, battery_start_j=5_400_000.0,
+        regen_power_w=350_000.0, regen_efficiency=0.90, has_mgu_h=False,
         # Fallback fixed values (used only if active_aero is somehow off)
         CdA=0.70, ClA=1.60,
         active_aero=True,
@@ -244,25 +338,23 @@ def car_2026(track_name: str = "Monza", trim: str = "qualifying") -> CarParams:
         # "clipping" (MGU-K battery depletes mid-straight, so the car can't
         # sustain peak power the whole way down it -- see energy_budget note below)
         straight_CdA=aero["straight_CdA"], straight_ClA=0.95,
-        manual_override=True,
-        override_power=60_000.0,   # override boost is modest in absolute terms
-                                    # (~50kW around 300 km/h per team/paddock
-                                    # commentary) -- NOT the full 350kW MGU-K
-                                    # rating, which mostly covers normal deployment
-        override_taper_start_kmh=290.0,
-        override_taper_end_kmh=355.0,
+        # Manual Override is superseded: MGU-K deployment (incl. its overtake
+        # boost) is now modelled explicitly by the ERS energy pass.
+        manual_override=False,
         tyre_mu=tyre_mu,
         rolling_resistance_coeff=0.014,
         top_speed_kmh=aero["top_speed_kmh"],
     )
 
 
-def drag_force(v: float, CdA: float) -> float:
-    return 0.5 * AIR_DENSITY * CdA * v ** 2
+def drag_force(v: float, CdA: float, rho: float = AIR_DENSITY) -> float:
+    """Aerodynamic drag [N] = 0.5 * rho * CdA * v^2."""
+    return 0.5 * rho * CdA * v ** 2
 
 
-def downforce(v: float, ClA: float) -> float:
-    return 0.5 * AIR_DENSITY * ClA * v ** 2
+def downforce(v: float, ClA: float, rho: float = AIR_DENSITY) -> float:
+    """Aerodynamic downforce [N] = 0.5 * rho * ClA * v^2 (added to vertical load)."""
+    return 0.5 * rho * ClA * v ** 2
 
 
 def mu_effective(mu_base: float, N: float, mass: float, mu_load_sensitivity: float) -> float:
@@ -313,7 +405,7 @@ def max_corner_speed(radius: float, mass: float, car: CarParams) -> float:
 
     v = 50.0  # m/s initial guess
     for _ in range(30):
-        N = mass * G + downforce(v, ClA)
+        N = mass * G + downforce(v, ClA, car.rho)
         mu_eff = mu_effective(car.tyre_mu, N, mass, car.mu_load_sensitivity)
         v_new = np.sqrt(max(mu_eff * N * r / mass, 1e-6))
         if v_new > v_cap:
@@ -324,47 +416,65 @@ def max_corner_speed(radius: float, mass: float, car: CarParams) -> float:
     return float(min(v, v_cap))
 
 
-def max_traction_accel(v: float, mass: float, car: CarParams, lateral_g: float = 0.0,
-                        aero_mode: str = "straight", drs: bool = False) -> float:
+def powertrain_power_w(car: CarParams, v: float, ers_power_w: Optional[float] = None) -> float:
+    """Total crank power [W] available at speed v.
+
+    ers_power_w:
+      * None  -> the solver isn't doing explicit energy management. Use the
+                 full MGU-K rating (ice_power_w + mguk_power_w) if the car has
+                 the split defined, else the legacy combined `engine_power`
+                 plus the manual-override taper.
+      * float -> the exact MGU-K power the energy pass has granted at this
+                 point on track (0 during clipping, up to mguk_power_w).
     """
-    Max forward acceleration at speed v, accounting for:
-      - engine power ceiling (P = F*v -> F = P/v, capped at low speed by a
-        traction limit so we don't get infinite force at v=0)
-      - Manual Override MGU-K boost (2026 only), tapering off at high speed
-      - load-sensitive tyre grip on a friction ellipse (some grip budget
-        already used for cornering, expressed as lateral_g in units of g --
-        e.g. 3.0 means the corner is currently demanding 3g of lateral force)
-      - DRS (2025-era only): reduces drag and downforce when open and the
-        car's own drs_available flag is set
-      - gear-limited top speed (rev limiter): once v reaches car.top_speed_kmh,
-        engine force is capped to exactly balance drag, holding a steady
-        cruise speed instead of continuing to accelerate
-      - drag opposing forward motion (uses the aero mode for this part of track)
+    if car.ice_power_w is not None:
+        mguk = car.mguk_power_w if ers_power_w is None else max(0.0, ers_power_w)
+        return car.ice_power_w + mguk
+    # legacy combined-power path
+    extra = car.override_power_at(v) if ers_power_w is None else max(0.0, ers_power_w)
+    return car.engine_power + extra
+
+
+def max_traction_accel(v: float, mass: float, car: CarParams, lateral_g: float = 0.0,
+                        aero_mode: str = "straight", drs: bool = False,
+                        ers_power_w: Optional[float] = None) -> float:
+    """
+    Max forward acceleration [m/s^2] at speed v, accounting for:
+      - hybrid powertrain power ceiling: ICE + MGU-K deployment (P = F*v ->
+        F = P/v), with MGU-K power set by the ERS energy pass via ers_power_w
+        (0 W once the lap's deployment budget / battery SOC is spent -> the
+        "clipping" you see at the end of long straights). Capped at low speed
+        by a traction limit so force isn't infinite at v=0.
+      - load-sensitive tyre grip on a friction ellipse (grip already spent
+        cornering is passed in as lateral_g, in units of g)
+      - DRS (2025-era): reduces drag and downforce when open
+      - gear/rev limiter: at car.top_speed_kmh, drive force exactly balances
+        drag (net accel -> 0), not a hard wall
+      - aerodynamic drag (density rho and aero mode for this part of track)
     """
     CdA, ClA = car.aero_params(aero_mode)
     if drs and car.drs_available:
         CdA *= car.drs_drag_mult
         ClA *= car.drs_downforce_mult
+    rho = car.rho
     v_eff = max(v, 5.0)  # avoid singularity at very low speed
 
     if car.top_speed_kmh is not None and v * 3.6 >= car.top_speed_kmh:
-        # Rev limiter reached: exactly enough force to hold steady speed,
-        # net acceleration = 0 (not a hard wall -- the car just stops
-        # gaining speed here, same as a real car bouncing off the limiter).
-        engine_force = drag_force(v, CdA) + car.rolling_resistance_coeff * mass * G
+        # Rev limiter reached: exactly enough force to hold steady speed.
+        engine_force = drag_force(v, CdA, rho) + car.rolling_resistance_coeff * mass * G
     else:
-        total_power = car.engine_power + car.override_power_at(v)
+        total_power = powertrain_power_w(car, v, ers_power_w)
         engine_force = min(total_power * car.drivetrain_efficiency / v_eff,
                             mass * G * car.tyre_mu * 1.3)  # traction-limited launch cap
 
-    N = mass * G + downforce(v, ClA)
+    N = mass * G + downforce(v, ClA, rho)
     mu_eff = mu_effective(car.tyre_mu, N, mass, car.mu_load_sensitivity)
     total_grip = mu_eff * N
     Fy = min(max(lateral_g, 0.0) * G * mass, total_grip - 1e-6)
     remaining_long_grip = _friction_ellipse_Fx(total_grip, Fy, car.mu_ellipse_p)
 
     drive_force = min(engine_force, remaining_long_grip)
-    net_force = drive_force - drag_force(v, CdA) - car.rolling_resistance_coeff * mass * G
+    net_force = drive_force - drag_force(v, CdA, rho) - car.rolling_resistance_coeff * mass * G
     return net_force / mass
 
 
@@ -374,15 +484,18 @@ def max_brake_decel(v: float, mass: float, car: CarParams, lateral_g: float = 0.
     friction ellipse as acceleration) plus drag (which helps braking). DRS is
     always assumed closed while braking. Defaults to 'corner' (Z-mode) aero
     since braking zones are typically where the car has already switched to
-    high-downforce mode ahead of the corner."""
+    high-downforce mode ahead of the corner. Deceleration is capped at
+    car.max_decel_g (carbon-brake + tyre ceiling, ~5.5 g) so the low-speed
+    regime -- where tyre grip alone could imply more -- stays physical."""
     CdA, ClA = car.aero_params(aero_mode)
-    N = mass * G + downforce(v, ClA)
+    rho = car.rho
+    N = mass * G + downforce(v, ClA, rho)
     mu_eff = mu_effective(car.tyre_mu, N, mass, car.mu_load_sensitivity)
     total_grip = mu_eff * N
     Fy = min(max(lateral_g, 0.0) * G * mass, total_grip - 1e-6)
     Fx_tyre = _friction_ellipse_Fx(total_grip, Fy, car.mu_ellipse_p)
-    brake_force = Fx_tyre + drag_force(v, CdA)
-    return brake_force / mass
+    brake_force = Fx_tyre + drag_force(v, CdA, rho)
+    return min(brake_force / mass, car.max_decel_g * G)
 
 
 if __name__ == "__main__":
@@ -394,14 +507,16 @@ if __name__ == "__main__":
     print(f"Parabolica (r=175m): {max_corner_speed(175, m, car)*3.6:.1f} km/h")
     print(f"Rettifilo chicane (r=22m): {max_corner_speed(22, m, car)*3.6:.1f} km/h")
 
-    print("\n=== 2026-spec (active aero + Manual Override) ===")
+    print(f"Air density (Monza): {car.rho:.3f} kg/m^3")
+
+    print("\n=== 2026-spec (active aero, 400kW ICE + 350kW MGU-K, no MGU-H) ===")
     car26 = car_2026()
     m26 = car26.mass_at(0)
-    print(f"Mass: {m26:.1f} kg")
+    print(f"Mass: {m26:.1f} kg   Air density: {car26.rho:.3f} kg/m^3")
     print(f"Curva Grande (r=230m): {max_corner_speed(230, m26, car26)*3.6:.1f} km/h")
     print(f"Parabolica (r=175m): {max_corner_speed(175, m26, car26)*3.6:.1f} km/h")
     print(f"Rettifilo chicane (r=22m): {max_corner_speed(22, m26, car26)*3.6:.1f} km/h")
-    print(f"Max accel at 340 km/h on straight (X-mode, override active): "
-          f"{max_traction_accel(340/3.6, m26, car26, aero_mode='straight'):.2f} m/s^2")
-    print(f"Max accel at 340 km/h on straight (no override): "
-          f"{max_traction_accel(340/3.6, m26, CarParams(**{**car26.__dict__, 'manual_override': False}), aero_mode='straight'):.2f} m/s^2")
+    print(f"Max accel at 340 km/h (full MGU-K deploy): "
+          f"{max_traction_accel(340/3.6, m26, car26, aero_mode='straight', ers_power_w=350_000):.2f} m/s^2")
+    print(f"Max accel at 340 km/h (clipped, ICE only): "
+          f"{max_traction_accel(340/3.6, m26, car26, aero_mode='straight', ers_power_w=0.0):.2f} m/s^2")

@@ -40,15 +40,23 @@ CFG = theme.plotly_config()
 
 
 def _spec_card(car_label, car, is_2026):
+    ice = (car.ice_power_w or car.engine_power) / 1000.0
+    mguk = car.mguk_power_w / 1000.0
+    budget = ("4.0 MJ/lap cap" if car.mguk_deploy_budget_j
+              else f"{car.battery_capacity_j/1e6:.1f} MJ store, no MGU-H")
     theme.render_html(
         f'<div class="circuit-card">'
         f'<div class="circuit-title">&#9881; SPEC &bull; {car_label}</div>'
         f'<div class="circuit-row"><span class="k">Min Mass</span>'
         f'<span class="v">{car.mass_empty:.0f} kg</span></div>'
         f'<div class="circuit-row"><span class="k">Power Unit</span>'
-        f'<span class="v">{car.engine_power/1000:.0f} kW &bull; ~{car.engine_power/735.5:.0f} hp</span></div>'
-        f'<div class="circuit-row"><span class="k">MGU-K Deploy</span>'
-        f'<span class="v">{MGUK_KW["2026" if is_2026 else "2025"]} kW</span></div>'
+        f'<span class="v">{ice + mguk:.0f} kW &bull; ~{(ice + mguk) * 1000 / 735.5:.0f} hp</span></div>'
+        f'<div class="circuit-row"><span class="k">ICE / MGU-K</span>'
+        f'<span class="v">{ice:.0f} + {mguk:.0f} kW</span></div>'
+        f'<div class="circuit-row"><span class="k">ERS Budget</span>'
+        f'<span class="v">{budget}</span></div>'
+        f'<div class="circuit-row"><span class="k">Air Density</span>'
+        f'<span class="v">{car.rho:.3f} kg/m&sup3;</span></div>'
         f'<div class="circuit-row"><span class="k">Aero Mode</span>'
         f'<span class="v">{"Dual-state Z / X" if is_2026 else "Fixed wing + DRS"}</span></div>'
         f'</div>'
@@ -82,19 +90,21 @@ with st.sidebar:
 
     with st.expander("Physics Model Engine"):
         st.markdown(
-            "Point-mass forward–backward solver: aerodynamic downforce, parasitic "
-            "drag, load-sensitive tyre friction-ellipse limits, and fuel-burn "
-            "sensitivity.\n\n"
-            "- **2026** — 768 kg, 355 kW ICE + 350 kW MGU-K, switchable Z-mode "
-            "(corners) / X-mode (straights).\n"
-            "- **2025** — 798 kg, 585 kW ICE + 120 kW MGU-K, standard DRS actuation."
+            "Energy-constrained point-mass forward–backward solver: real air "
+            "density from track temp + elevation, load-sensitive tyre "
+            "friction-ellipse, fuel burn-off, carbon-brake 5.5 g ceiling, and "
+            "an ERS energy pass (deploy vs harvest → end-of-straight clipping).\n\n"
+            "- **2026** — 768 kg, 400 kW ICE + 350 kW MGU-K, **no MGU-H** so the "
+            "4 MJ store depletes; switchable Z-mode / X-mode active aero.\n"
+            "- **2025** — 798 kg, ~660 kW ICE + 120 kW MGU-K, 4 MJ/lap "
+            "deployment cap (MGU-H keeps the store topped), DRS."
         )
 
 
 # ============================================================================
 # HEADER + NAV
 # ============================================================================
-theme.render_f1_header(track_name, LAP_LENGTH, car_label)
+theme.render_f1_header(track_name, LAP_LENGTH, car_label, air_density=car.rho)
 
 tab_single, tab_compare, tab_custom, tab_opt, tab_map = st.tabs([
     "🏁 Telemetry HUD",
@@ -131,7 +141,7 @@ with tab_single:
     )
     if run_lap or "last_lap_result" not in st.session_state or track_or_car_changed:
         with st.spinner(f"Solving {track_name} · {car_label}…"):
-            result = simulate_lap(TRACK, car, step=step_res)
+            result = simulate_lap(TRACK, car, step=step_res, track_name=track_name)
             st.session_state["last_lap_result"] = result
             st.session_state["last_lap_track"] = track_name
             st.session_state["last_lap_car"] = car_label
@@ -144,11 +154,12 @@ with tab_single:
         v_max = result["v_profile"].max() * 3.6
         v_avg = (LAP_LENGTH / t) * 3.6
         v_min = result["v_profile"].min() * 3.6
-        if result.get("throttle_pct") is not None:
-            full_throttle = np.average(result["throttle_pct"] >= 98.0,
-                                       weights=result["ds_arr"]) * 100.0
-        else:
-            full_throttle = 0.0
+        s1, s2, s3 = result["sector_times"]
+        b1, b2 = result["sector_bounds_m"]
+        g_lat_max = float(np.max(result["g_lat"]))
+        g_brake_max = float(-np.min(result["g_long"]))
+        g_accel_max = float(np.max(result["g_long"]))
+        ers = result["ers"]
 
         theme.chips([
             (f"{track_name.upper()}", True),
@@ -160,60 +171,87 @@ with tab_single:
 
         theme.render_readout_row([
             ("Lap Time", theme.format_time_local(t), "POLE-POSITION PACE", C["purple"]),
-            ("Top Speed", f"{v_max:.1f}", "KM/H · END OF STRAIGHT", C["cyan"]),
+            ("Speed Trap", f"{result['speed_trap_kmh']:.1f}", "KM/H · FASTEST STRAIGHT", C["cyan"]),
             ("Average Speed", f"{v_avg:.1f}", "KM/H · CIRCUIT MEAN", C["amber"]),
             ("Min Corner Speed", f"{v_min:.1f}", "KM/H · TIGHTEST APEX", C["wet"]),
-            ("Full Throttle", f"{full_throttle:.0f}%", "OF LAP DISTANCE", C["positive"]),
+            ("Peak Lateral", f"{g_lat_max:.1f}g", "MAX CORNERING LOAD", C["positive"]),
+            ("Peak Braking", f"{g_brake_max:.1f}g", "MAX DECELERATION", C["f1_red"]),
+        ])
+
+        theme.render_readout_row([
+            ("Sector 1", f"{s1:.3f}", f"TO {b1:,.0f} M", C["cyan"]),
+            ("Sector 2", f"{s2:.3f}", f"{b1:,.0f}–{b2:,.0f} M", C["amber"]),
+            ("Sector 3", f"{s3:.3f}", f"{b2:,.0f} M TO LINE", C["purple"]),
+            ("ERS Deployed", f"{ers['deployed_j']/1e6:.2f}", "MJ / LAP", C["teal"]),
+            ("ERS Harvested", f"{ers['harvested_j']/1e6:.2f}", "MJ / LAP (REGEN)", C["positive"]),
+            ("Clipping", f"{ers['clip_distance_m']:.0f}", "M AT REDUCED MGU-K", C["negative"]),
         ])
         if report.warnings:
             st.warning(" ".join(report.warnings), icon="⚠️")
 
-        # Longitudinal G from the converged speed profile
-        dt = np.diff(result["s"]) / np.maximum(result["v_profile"][:-1], 1.0)
-        accel_g = np.zeros_like(result["s"])
-        accel_g[:-1] = (np.diff(result["v_profile"]) / np.maximum(dt, 1e-4)) / 9.81
-
+        s_m = result["s"]
         fig = make_subplots(
-            rows=3, cols=1, shared_xaxes=True,
-            row_heights=[0.5, 0.26, 0.24], vertical_spacing=0.045,
-            subplot_titles=("SPEED PROFILE · KM/H",
+            rows=4, cols=1, shared_xaxes=True,
+            row_heights=[0.40, 0.20, 0.20, 0.20], vertical_spacing=0.04,
+            subplot_titles=("SPEED PROFILE · KM/H  (dashed = energy-unconstrained)",
                             "PEDAL TELEMETRY · THROTTLE & BRAKE %",
-                            "LONGITUDINAL ACCELERATION · G"),
+                            "G-FORCE · LATERAL / LONGITUDINAL / TOTAL",
+                            "ERS · MGU-K DEPLOYMENT kW & BATTERY SOC %"),
         )
         for tr in theme.glow_scatter(
-            result["s"], result["v_profile"] * 3.6, C["cyan"], "Speed",
+            s_m, result["v_profile"] * 3.6, C["cyan"], "Speed",
             width=2.6, hovertemplate="Speed %{y:.1f} km/h<extra></extra>",
         ):
             fig.add_trace(tr, row=1, col=1)
+        fig.add_trace(go.Scatter(
+            x=s_m, y=result["v_profile_free"] * 3.6, name="No energy limit",
+            line=dict(width=1.1, color="rgba(255,255,255,0.35)", dash="dot"),
+            hoverinfo="skip",
+        ), row=1, col=1)
 
         fig.add_trace(go.Scatter(
-            x=result["s"], y=result["throttle_pct"], name="Throttle",
+            x=s_m, y=result["throttle_pct"], name="Throttle",
             line=dict(width=1.4, color=C["positive"]),
             fill="tozeroy", fillcolor="rgba(0,230,118,0.22)",
             hovertemplate="Throttle %{y:.0f}%<extra></extra>",
         ), row=2, col=1)
         fig.add_trace(go.Scatter(
-            x=result["s"], y=result["brake_pct"], name="Brake",
+            x=s_m, y=result["brake_pct"], name="Brake",
             line=dict(width=1.4, color=C["f1_red"]),
             fill="tozeroy", fillcolor="rgba(255,24,1,0.30)",
             hovertemplate="Brake %{y:.0f}%<extra></extra>",
         ), row=2, col=1)
+
+        fig.add_trace(go.Scatter(x=s_m, y=result["g_lat"], name="Lateral g",
+                                 line=dict(width=1.3, color=C["cyan"]),
+                                 hovertemplate="Lat %{y:.2f} g<extra></extra>"), row=3, col=1)
+        fig.add_trace(go.Scatter(x=s_m, y=result["g_long"], name="Long. g",
+                                 line=dict(width=1.3, color=C["amber"]),
+                                 hovertemplate="Long %{y:.2f} g<extra></extra>"), row=3, col=1)
+        fig.add_trace(go.Scatter(x=s_m, y=result["g_total"], name="Total g",
+                                 line=dict(width=1.0, color="rgba(255,255,255,0.4)"),
+                                 hovertemplate="Total %{y:.2f} g<extra></extra>"), row=3, col=1)
+
         fig.add_trace(go.Scatter(
-            x=result["s"], y=accel_g, name="Long. G",
-            line=dict(width=1.4, color=C["amber"]),
-            fill="tozeroy", fillcolor="rgba(255,183,3,0.16)",
-            hovertemplate="Accel %{y:.2f} G<extra></extra>",
-        ), row=3, col=1)
+            x=s_m, y=ers["ers_power_trace"] / 1e3, name="MGU-K kW",
+            line=dict(width=1.3, color=C["teal"]),
+            fill="tozeroy", fillcolor="rgba(0,210,190,0.18)",
+            hovertemplate="MGU-K %{y:.0f} kW<extra></extra>"), row=4, col=1)
+        soc_pct = ers["soc_trace"] / max(ers["soc_start_j"], 1.0) * 100.0
+        fig.add_trace(go.Scatter(
+            x=s_m, y=soc_pct, name="Battery SOC %",
+            line=dict(width=1.3, color=C["purple"]),
+            hovertemplate="SOC %{y:.0f}%<extra></extra>"), row=4, col=1)
 
         fig.update_yaxes(title_text="KM/H", row=1, col=1)
         fig.update_yaxes(title_text="%", range=[0, 105], row=2, col=1)
         fig.update_yaxes(title_text="G", row=3, col=1)
-        fig.update_xaxes(title_text="TRACK DISTANCE AROUND LAP · METERS", row=3, col=1)
+        fig.update_yaxes(title_text="kW / %", row=4, col=1)
+        fig.update_xaxes(title_text="TRACK DISTANCE AROUND LAP · METERS", row=4, col=1)
 
-        sector_edges = [0, LAP_LENGTH / 3, 2 * LAP_LENGTH / 3, LAP_LENGTH]
-        theme.add_sector_bands(fig, sector_edges, row=1, col=1)
+        theme.add_sector_bands(fig, [0, b1, b2, LAP_LENGTH], row=1, col=1)
 
-        fig.update_layout(**theme.themed_layout_kwargs(height=760))
+        fig.update_layout(**theme.themed_layout_kwargs(height=900))
         fig.update_layout(title=f"TELEMETRY LOG · {track_name.upper()} · {theme.format_time_local(t)}")
         theme.style_axes(fig)
         theme.style_annotations(fig)
@@ -276,8 +314,8 @@ with tab_compare:
 
     if st.button("⚡ Run Comparison Analysis", key="compare_btn"):
         with st.spinner(f"Simulating both regulation packages at {track_name}…"):
-            res25 = simulate_lap(TRACK, c25, step=2.0)
-            res26 = simulate_lap(TRACK, c26, step=2.0)
+            res25 = simulate_lap(TRACK, c25, step=2.0, track_name=track_name)
+            res26 = simulate_lap(TRACK, c26, step=2.0, track_name=track_name)
 
         t25, t26 = res25["lap_time"], res26["lap_time"]
         dt = t26 - t25

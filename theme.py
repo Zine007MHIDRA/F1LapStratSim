@@ -97,9 +97,15 @@ COMPOUND_COLORS = {
 # scenario values (the sim has no live weather model) — the ticker labels them
 # "SIM CONDITIONS" so they are never mistaken for a prediction.
 TRACK_CONDITIONS = {
-    "Monza": dict(air=27, track=44, grip="HIGH", wind="12 KM/H NE", sky="CLEAR", humidity=38),
-    "Silverstone": dict(air=18, track=29, grip="MEDIUM", wind="24 KM/H SW", sky="OVERCAST", humidity=71),
-    "Spa-Francorchamps": dict(air=16, track=23, grip="VARIABLE", wind="18 KM/H W", sky="DAMP PATCHES", humidity=82),
+    "Monza":             dict(air=27, track=42, grip="HIGH",     wind="12 KM/H NE", sky="CLEAR",        humidity=38),
+    "Silverstone":       dict(air=19, track=30, grip="MEDIUM",   wind="24 KM/H SW", sky="OVERCAST",     humidity=71),
+    "Spa-Francorchamps": dict(air=17, track=28, grip="VARIABLE", wind="18 KM/H W",  sky="DAMP PATCHES", humidity=82),
+    "Monaco":            dict(air=24, track=40, grip="MEDIUM",   wind="9 KM/H SE",  sky="CLEAR",        humidity=61),
+    "Suzuka":            dict(air=20, track=35, grip="HIGH",     wind="15 KM/H NW", sky="PART CLOUD",   humidity=58),
+    "Bahrain":           dict(air=26, track=29, grip="MEDIUM",   wind="21 KM/H N",  sky="NIGHT / CLEAR", humidity=44),
+    "Red Bull Ring":     dict(air=26, track=44, grip="HIGH",     wind="14 KM/H S",  sky="CLEAR",        humidity=40),
+    "Interlagos":        dict(air=24, track=45, grip="MEDIUM",   wind="17 KM/H SE", sky="BUILDING CLOUD", humidity=66),
+    "COTA":              dict(air=28, track=40, grip="MEDIUM",   wind="19 KM/H S",  sky="CLEAR",        humidity=52),
 }
 
 
@@ -782,18 +788,21 @@ def render_header(track_name: str, lap_length: float, car_label: str):
 
 
 def render_f1_header(track_name: str, lap_length: float, car_label: str,
-                     status: str = "TRACK GREEN"):
+                     status: str = "TRACK GREEN", air_density: float = None):
     """Broadcast-style session header with a live telemetry ticker strip
-    (circuit, length, regulation, air/track temp, grip, wind)."""
+    (circuit, length, regulation, air/track temp, air density, grip, wind)."""
     cond = TRACK_CONDITIONS.get(track_name, dict(
         air=22, track=34, grip="MEDIUM", wind="15 KM/H", sky="CLEAR", humidity=50))
 
+    rho_tick = ((f"{air_density:.3f} kg/m&sup3;", "neutral") if air_density
+                else (f"{cond['humidity']}%", "neutral"))
     ticks = [
         ("Circuit", track_name.upper(), "neutral"),
         ("Lap Length", f"{lap_length:,.0f} M", "neutral"),
         ("Regulation", car_label, ""),
         ("Air Temp", f"{cond['air']}&deg;C", "warm"),
         ("Track Temp", f"{cond['track']}&deg;C", "warm"),
+        ("Air Density" if air_density else "Humidity", rho_tick[0], rho_tick[1]),
         ("Grip Index", cond["grip"], ""),
         ("Wind", cond["wind"], "neutral"),
         ("Sky", cond["sky"], "neutral"),

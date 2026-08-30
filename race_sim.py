@@ -12,7 +12,7 @@ assuming Monza, so the same code drives any track defined in track_model.py.
 import numpy as np
 from car_model import CarParams
 from tyre_model import COMPOUNDS, grip_multiplier
-from track_model import total_length, TRACK_PIT_LOSS_S
+from track_model import total_length, TRACK_PIT_LOSS_S, tyre_stress
 from lap_sim import simulate_lap
 
 DEFAULT_PIT_STOP_LOSS_S = 23.0  # fallback if a track isn't in TRACK_PIT_LOSS_S
@@ -23,22 +23,29 @@ def pit_loss_for(track_name: str) -> float:
 
 
 def simulate_stint(segments, car: CarParams, compound_name: str, n_laps: int,
-                    race_distance_at_stint_start: float = 0.0, step: float = 4.0):
-    """Simulate n_laps on one tyre compound. Returns list of lap times (s) and total stint time."""
+                    race_distance_at_stint_start: float = 0.0, step: float = 4.0,
+                    track_name: str = None):
+    """Simulate n_laps on one tyre compound. Returns list of lap times (s) and total stint time.
+
+    track_name selects the circuit tyre-stress factor (tyre_model thermal load):
+    high-energy tracks degrade the tyre faster lap-on-lap.
+    """
     if compound_name not in COMPOUNDS:
         raise ValueError(f"Unknown tyre compound: {compound_name!r}")
     if n_laps <= 0:
         raise ValueError(f"Stint length must be positive, got {n_laps}")
     compound = COMPOUNDS[compound_name]
+    thermal_load = tyre_stress(track_name)
     lap_length = total_length(segments)
     lap_times = []
     race_distance = race_distance_at_stint_start
 
     for lap_on_tyre in range(1, n_laps + 1):
-        g_mult = grip_multiplier(compound, lap_on_tyre)
+        g_mult = grip_multiplier(compound, lap_on_tyre, thermal_load=thermal_load)
         result = simulate_lap(segments, car, step=step,
                                race_distance_so_far_m=race_distance,
-                               grip_multiplier=g_mult, compute_pedals=False)
+                               grip_multiplier=g_mult, compute_pedals=False,
+                               track_name=track_name)
         lap_times.append(result["lap_time"])
         race_distance += lap_length
 
@@ -83,7 +90,7 @@ def simulate_race_strategy(segments, car: CarParams, stint_plan, total_laps: int
     for i, (compound_name, n_laps) in enumerate(stint_plan):
         lap_times, stint_time = simulate_stint(segments, car, compound_name, n_laps,
                                                 race_distance_at_stint_start=race_distance,
-                                                step=step)
+                                                step=step, track_name=track_name)
         all_lap_times.extend(lap_times)
         total_time += stint_time
         race_distance += n_laps * lap_length
