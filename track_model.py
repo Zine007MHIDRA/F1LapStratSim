@@ -80,7 +80,7 @@ def _fit_length(segments: List[Segment], target_m: float) -> List[Segment]:
 # sub-corners with alternating direction, matching how they're actually driven.
 # ============================================================
 MONZA_SEGMENTS: List[Segment] = [
-    Segment("straight", 715, "Start/Finish straight"),
+    Segment("straight", 715, "Start/Finish straight", drs=True),
     Segment("corner", 25, "Turn 1 Rettifilo (entry)", radius=25, direction=+1),
     Segment("straight", 9, "Rettifilo link"),
     Segment("corner", 20, "Turn 2 Rettifilo (exit)", radius=20, direction=-1),
@@ -94,7 +94,7 @@ MONZA_SEGMENTS: List[Segment] = [
     Segment("corner", 161, "Turn 6 Lesmo 1", radius=90, direction=+1),
     Segment("straight", 227, "Run to Lesmo 2"),
     Segment("corner", 143, "Turn 7 Lesmo 2", radius=100, direction=+1),
-    Segment("straight", 1123, "Back straight (to Ascari)"),
+    Segment("straight", 1123, "Back straight (to Ascari)", drs=True),
     Segment("corner", 40, "Turn 8 Ascari (entry)", radius=40, direction=-1),
     Segment("straight", 7, "Ascari link 1"),
     Segment("corner", 35, "Turn 9 Ascari (mid)", radius=35, direction=+1),
@@ -126,7 +126,7 @@ SILVERSTONE_SEGMENTS: List[Segment] = [
     Segment("corner", 39, "The Loop", radius=25, direction=+1),
     Segment("straight", 198, "Run to Aintree"),
     Segment("corner", 24, "Aintree", radius=70, direction=-1),
-    Segment("straight", 922, "Wellington Straight"),
+    Segment("straight", 922, "Wellington Straight", drs=True),
     Segment("corner", 37, "Brooklands", radius=60, direction=+1),
     Segment("straight", 132, "Run to Luffield"),
     Segment("corner", 55, "Luffield", radius=35, direction=+1),
@@ -140,7 +140,7 @@ SILVERSTONE_SEGMENTS: List[Segment] = [
     Segment("corner", 37, "Becketts", radius=70, direction=+1),
     Segment("straight", 105, "Run to Chapel"),
     Segment("corner", 31, "Chapel", radius=90, direction=-1),
-    Segment("straight", 988, "Hangar Straight"),
+    Segment("straight", 988, "Hangar Straight", drs=True),
     Segment("corner", 94, "Stowe", radius=120, direction=+1),
     Segment("straight", 395, "Run to Vale"),
     Segment("corner", 24, "Vale (entry)", radius=40, direction=-1),
@@ -173,13 +173,13 @@ SILVERSTONE_SEGMENTS: List[Segment] = [
 # direction, which isn't built yet -- noted as a roadmap item in the README.
 # ============================================================
 SPA_SEGMENTS: List[Segment] = [
-    Segment("straight", 130, "Start/Finish straight"),
+    Segment("straight", 130, "Start/Finish straight", drs=True),
     Segment("corner", 65, "La Source", radius=25, direction=+1),
     Segment("straight", 403, "Downhill to Eau Rouge"),
     Segment("corner", 87, "Eau Rouge", radius=250, direction=-1),
     Segment("straight", 24, "Eau Rouge link"),
     Segment("corner", 87, "Raidillon", radius=200, direction=+1),
-    Segment("straight", 1776, "Kemmel Straight"),
+    Segment("straight", 1776, "Kemmel Straight", drs=True),
     Segment("corner", 63, "Les Combes (entry)", radius=90, direction=+1),
     Segment("straight", 32, "Les Combes link"),
     Segment("corner", 27, "Les Combes (exit)", radius=45, direction=-1),

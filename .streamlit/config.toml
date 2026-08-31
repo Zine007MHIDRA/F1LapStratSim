@@ -9,7 +9,6 @@ font = "sans serif"
 
 [server]
 headless = true
-fileWatcherType = "none"   # no source-watching in production -> less CPU
 
 [browser]
 gatherUsageStats = false

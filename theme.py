@@ -24,6 +24,8 @@ Colour language (grounded in real F1 timing graphics + Pirelli standards):
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import streamlit as st
 import plotly.graph_objects as go
@@ -91,6 +93,40 @@ COMPOUND_COLORS = {
     "hard":   (COLORS["hard"],   "#0B0E14"),
     "inter":  (COLORS["inter"],  "#0B0E14"),
     "wet":    (COLORS["wet"],    "#FFFFFF"),
+}
+
+# ---------------------------------------------------------------------------
+# Cinematic imagery — openly-licensed motorsport photography (Unsplash License:
+# free for commercial + non-commercial use, no permission or attribution
+# required). Served straight from Unsplash's imgix CDN with width/quality/webp
+# params so the browser only ever downloads a right-sized, compressed frame.
+# Every image is used ONLY behind heavy dark overlays + gradients + vignette;
+# text never sits directly on a bright photo.
+# ---------------------------------------------------------------------------
+def _img(photo_id: str, w: int = 1800, q: int = 55) -> str:
+    return (f"https://images.unsplash.com/photo-{photo_id}"
+            f"?auto=format&fit=crop&w={w}&q={q}&fm=webp")
+
+ASSETS = {
+    "hero":   _img("1696178948648-327a44ddd7f0", 2000, 58),  # single-seater at speed, dusk
+    "grid":   _img("1614949194403-9602bdc14a3a", 1800, 55),  # dark formula car, painted kerbs
+    "duel":   _img("1696178946353-b2c37dc7df7c", 1600, 52),  # two cars nose-to-tail
+    "pit":    _img("1547917222-cce689932933", 1500, 50),     # pit crew, tyre change
+    "garage": _img("1547037456-0672aaf62970", 1500, 50),     # car in a lit garage bay
+}
+
+# Per-circuit hero tint — a hue rotation layered over the shared track photo so
+# each circuit page still reads as its own place without shipping 9 images.
+CIRCUIT_TINT = {
+    "Monza":             "hue-rotate(-8deg) saturate(1.05)",
+    "Silverstone":       "hue-rotate(180deg) saturate(0.7) brightness(0.92)",
+    "Spa-Francorchamps": "hue-rotate(120deg) saturate(0.8)",
+    "Monaco":            "hue-rotate(35deg) saturate(1.1)",
+    "Suzuka":            "hue-rotate(210deg) saturate(0.9)",
+    "Bahrain":           "hue-rotate(-25deg) saturate(1.2) brightness(1.02)",
+    "Red Bull Ring":     "hue-rotate(150deg) saturate(0.85)",
+    "Interlagos":        "hue-rotate(95deg) saturate(1.0)",
+    "COTA":              "hue-rotate(-15deg) saturate(1.05)",
 }
 
 # Illustrative circuit conditions for the status ticker. These are static
@@ -735,12 +771,323 @@ div[data-testid="stVerticalBlock"] > div:has(> [data-testid="stVerticalBlockBord
 """
 
 
+# ============================================================================
+# 2b · CINEMATIC LAYER  — hero, broadcast nav, circuit experience, timing tower,
+#      photographic backgrounds, motion. Appended after _STATIC_CSS so its
+#      :root overrides win and shift the whole console to the darker,
+#      red-primary "broadcast" palette without touching every component.
+# ============================================================================
+
+_CINEMATIC_CSS = """
+:root {
+  --ink-0:#070707; --ink-1:#0B0B0D; --ink-2:#111114; --ink-3:#17171B;
+  --panel:rgba(20,20,23,0.80); --panel-solid:#131316;
+  --race-red:#E10600; --race-red-bright:#FF2A21; --race-red-glow:rgba(225,6,0,0.45);
+  /* override console tokens -> cinematic palette */
+  --bg:#0B0B0D; --bg-deep:#070707;
+  --s1:#111114; --s2:#17171B; --s3:#1F1F24;
+  --card:rgba(20,20,23,0.80); --card-solid:#131316; --card-alt:rgba(26,26,30,0.85);
+  --glass:rgba(14,14,16,0.72);
+  --line:rgba(255,255,255,0.08); --line-solid:rgba(255,255,255,0.10); --line-bright:rgba(255,255,255,0.18);
+  --text:#FFFFFF; --text-muted:#A6A6AA; --text-dim:#6B6B72;
+  --red:#E10600; --red-deep:#B00500; --red-glow:rgba(225,6,0,0.45);
+  --accent-amber:#F5A623; --accent-cyan:#3BC9DB; --accent-green:#2FBF71;
+}
+
+/* ---- canvas: deep obsidian + floodlights + film grain + carbon detail ---- */
+.stApp {
+  background-color:#0B0B0D;
+  background-image:
+    radial-gradient(1400px 700px at 8% -10%, rgba(225,6,0,0.10) 0%, transparent 55%),
+    radial-gradient(1200px 600px at 100% 0%, rgba(120,140,180,0.05) 0%, transparent 55%),
+    radial-gradient(900px 900px at 50% 130%, rgba(225,6,0,0.05) 0%, transparent 60%),
+    linear-gradient(180deg,#0B0B0D 0%,#0A0A0C 45%,#070708 100%);
+  background-attachment:fixed;
+}
+.stApp::after {                     /* fine film grain */
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:0.35;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+[data-testid="stHeader"] { background:transparent !important; height:0 !important; }
+[data-testid="stHeader"]::before { opacity:0.6; height:2px; }
+[data-testid="stToolbar"] { display:none !important; }     /* remove default Streamlit chrome */
+[data-testid="stDecoration"] { display:none !important; }
+.block-container, [data-testid="stMainBlockContainer"] {
+  max-width:1460px !important; padding-top:0.4rem !important;
+}
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] { gap:0.7rem; }
+.st-key-nav_bar + div, .st-key-nav_bar { margin-top:0 !important; }
+
+/* ================= CINEMATIC HERO ================= */
+.hero {
+  position:relative; width:100vw; margin-left:calc(50% - 50vw);
+  margin-top:-0.6rem; margin-bottom:2.4rem; min-height:74vh;
+  display:flex; align-items:center; overflow:hidden;
+  border-bottom:1px solid var(--line);
+}
+.hero__media {
+  position:absolute; inset:0; z-index:0;
+  background-size:cover; background-position:center 35%;
+  transform:scale(1.04); animation:hero-drift 26s ease-in-out infinite alternate;
+}
+.hero__grade {                      /* dark overlays: keep text readable */
+  position:absolute; inset:0; z-index:1;
+  background:
+    linear-gradient(90deg, rgba(7,7,7,0.94) 0%, rgba(7,7,7,0.72) 42%, rgba(7,7,7,0.42) 100%),
+    linear-gradient(0deg, rgba(7,7,7,0.96) 0%, rgba(7,7,7,0.30) 40%, rgba(7,7,7,0.55) 100%),
+    radial-gradient(1000px 500px at 18% 60%, rgba(225,6,0,0.16) 0%, transparent 60%);
+}
+.hero__vig { position:absolute; inset:0; z-index:2; box-shadow:inset 0 0 260px 70px rgba(0,0,0,0.92); pointer-events:none; }
+.hero__lights {                     /* start-gantry light strip */
+  position:absolute; top:0; left:0; right:0; height:4px; z-index:3;
+  background:linear-gradient(90deg,var(--race-red) 0 18%,transparent 18% 20%,var(--race-red) 20% 38%,transparent 38% 40%,var(--race-red) 40% 58%,transparent 58% 60%,var(--race-red) 60% 78%,transparent 78% 80%,var(--race-red) 80% 98%);
+  box-shadow:0 0 22px var(--race-red-glow); opacity:0.9;
+}
+.hero__content {
+  position:relative; z-index:4; max-width:1440px; margin:0 auto;
+  padding:0 clamp(1.4rem,5vw,5rem); width:100%;
+}
+.hero__eyebrow {
+  display:inline-flex; align-items:center; gap:9px;
+  font-family:var(--font-mono); font-size:0.72rem; font-weight:700;
+  letter-spacing:0.32em; text-transform:uppercase; color:var(--text-muted);
+  border:1px solid var(--line-bright); border-radius:2px;
+  padding:6px 12px; margin-bottom:1.4rem;
+  background:rgba(0,0,0,0.4); backdrop-filter:blur(6px);
+}
+.hero__eyebrow .live {
+  width:7px; height:7px; border-radius:50%; background:var(--accent-green);
+  box-shadow:0 0 10px var(--accent-green); animation:pulse-dot 1.6s ease-in-out infinite;
+}
+.hero h1 {
+  font-family:var(--font-display); font-weight:700;
+  font-size:clamp(2.6rem,7vw,5.6rem); line-height:0.94;
+  letter-spacing:0.01em; text-transform:uppercase; color:#fff;
+  margin:0 0 0.5rem; text-shadow:0 8px 40px rgba(0,0,0,0.7);
+}
+.hero h1 .accent { color:var(--race-red); text-shadow:0 0 46px var(--race-red-glow); }
+.hero__tag {
+  font-family:var(--font-tech); font-weight:600; font-size:clamp(1rem,2.2vw,1.45rem);
+  letter-spacing:0.24em; text-transform:uppercase; color:#fff; margin-bottom:1.1rem;
+}
+.hero__tag span { color:var(--race-red); }
+.hero__desc {
+  font-family:var(--font-body); font-size:clamp(0.92rem,1.4vw,1.05rem);
+  line-height:1.65; color:var(--text-muted); max-width:44ch; margin-bottom:1.9rem;
+}
+.hero__stats { display:flex; gap:2.4rem; flex-wrap:wrap; margin-top:2.2rem; }
+.hero__stat .n {
+  font-family:var(--font-mono); font-weight:800; font-size:1.9rem; color:#fff;
+  font-variant-numeric:tabular-nums; line-height:1;
+}
+.hero__stat .l {
+  font-family:var(--font-tech); font-size:0.68rem; font-weight:700;
+  letter-spacing:0.16em; text-transform:uppercase; color:var(--text-dim); margin-top:5px;
+}
+.hero__scroll { display:none; }
+@keyframes hero-drift { from{transform:scale(1.05) translateY(0)} to{transform:scale(1.12) translateY(-12px)} }
+
+/* ===== hero CTA — an actual racing control ===== */
+.st-key-cta_start { max-width:340px; margin-top:0.4rem; }
+.st-key-cta_start button {
+  width:100%;
+  font-family:var(--font-display) !important; font-weight:700 !important;
+  font-size:0.98rem !important; letter-spacing:0.16em !important; text-transform:uppercase;
+  color:#fff !important;
+  background:linear-gradient(100deg,var(--race-red) 0%,#8E0400 100%) !important;
+  border:1px solid rgba(255,255,255,0.22) !important;
+  border-radius:0 !important;
+  clip-path:polygon(0 0,100% 0,100% 100%,14px 100%,0 calc(100% - 14px));
+  padding:1.05rem 1.6rem !important;
+  box-shadow:0 0 0 1px rgba(225,6,0,0.4),0 18px 44px -12px var(--race-red-glow),inset 0 1px 0 rgba(255,255,255,0.25) !important;
+  transition:transform .16s ease, box-shadow .16s ease, background .16s ease !important;
+}
+.st-key-cta_start button:hover {
+  transform:translateY(-2px) !important;
+  background:linear-gradient(100deg,var(--race-red-bright) 0%,var(--race-red) 100%) !important;
+  box-shadow:0 0 0 1px rgba(255,42,33,0.6),0 26px 60px -14px var(--race-red-glow) !important;
+}
+.st-key-cta_start button:active { transform:translateY(0) !important; }
+
+/* ================= BROADCAST NAV ================= */
+.st-key-nav_bar {
+  position:sticky; top:0; z-index:60; margin-bottom:0;
+  background:linear-gradient(180deg,rgba(11,11,13,0.98) 55%,rgba(11,11,13,0));
+  backdrop-filter:blur(12px);
+}
+.st-key-nav_bar [role="radiogroup"] {
+  display:flex !important; flex-wrap:nowrap; gap:0; align-items:stretch;
+  overflow-x:auto; scrollbar-width:none;
+  border-bottom:1px solid var(--line); margin:0; padding:0;
+}
+.st-key-nav_bar [role="radiogroup"]::-webkit-scrollbar { display:none; }
+.st-key-nav_bar label[data-testid="stRadioOption"] {
+  background:transparent !important; border:0 !important; border-radius:0 !important;
+  margin:0 !important; padding:0.85rem 1.15rem 0.9rem !important;
+  position:relative; flex:0 0 auto; transition:background .14s ease;
+}
+.st-key-nav_bar label[data-testid="stRadioOption"]:hover { background:rgba(255,255,255,0.035) !important; }
+/* hide the radio circle, keep only the label text */
+.st-key-nav_bar label[data-testid="stRadioOption"] > div > div > div:first-child { display:none !important; }
+.st-key-nav_bar label[data-testid="stRadioOption"] > div > div { gap:0 !important; }
+.st-key-nav_bar label p {
+  font-family:var(--font-display) !important; font-size:0.78rem !important;
+  font-weight:700 !important; letter-spacing:0.13em !important; text-transform:uppercase;
+  white-space:nowrap; color:var(--text-dim) !important; margin:0 !important; transition:color .14s ease;
+}
+.st-key-nav_bar label:hover p { color:var(--text-muted) !important; }
+.st-key-nav_bar label[data-selected="true"] p { color:#fff !important; }
+.st-key-nav_bar label[data-selected="true"]::after {
+  content:""; position:absolute; left:0.9rem; right:0.9rem; bottom:-1px; height:3px;
+  background:var(--race-red); box-shadow:0 0 16px var(--race-red-glow);
+}
+.nav-brand {
+  display:flex; align-items:center; gap:12px; padding:0.5rem 0 0.9rem;
+}
+.nav-brand .mark {
+  font-family:var(--font-display); font-weight:700; font-size:1rem; letter-spacing:0.12em;
+  color:#fff; background:var(--race-red); padding:3px 9px;
+  clip-path:polygon(0 0,100% 0,100% 100%,8px 100%,0 calc(100% - 8px));
+}
+.nav-brand .name { font-family:var(--font-display); font-weight:700; letter-spacing:0.16em; color:#fff; font-size:0.98rem; text-transform:uppercase; }
+.nav-brand .sys {
+  margin-left:auto; font-family:var(--font-mono); font-size:0.66rem; letter-spacing:0.2em;
+  color:var(--accent-green); text-transform:uppercase; display:flex; align-items:center; gap:7px;
+}
+.nav-brand .sys::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--accent-green); box-shadow:0 0 9px var(--accent-green); animation:pulse-dot 1.7s infinite; }
+
+/* ================= CIRCUIT EXPERIENCE ================= */
+.ct-hero {
+  position:relative; width:100vw; margin-left:calc(50% - 50vw);
+  min-height:340px; display:flex; align-items:flex-end; overflow:hidden;
+  margin-bottom:1.8rem; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+}
+.ct-hero__media { position:absolute; inset:0; background-size:cover; background-position:center; }
+.ct-hero__grade {
+  position:absolute; inset:0;
+  background:linear-gradient(0deg,rgba(7,7,7,0.97) 0%,rgba(7,7,7,0.55) 55%,rgba(7,7,7,0.75) 100%),
+             linear-gradient(90deg,rgba(7,7,7,0.9),transparent 60%);
+}
+.ct-hero__content { position:relative; z-index:2; padding:0 clamp(1.4rem,5vw,4rem) 1.8rem; width:100%; max-width:1440px; margin:0 auto; }
+.ct-hero__kicker { font-family:var(--font-mono); font-size:0.7rem; letter-spacing:0.3em; text-transform:uppercase; color:var(--race-red); margin-bottom:0.4rem; }
+.ct-hero h2 { font-family:var(--font-display); font-weight:700; font-size:clamp(2rem,5vw,3.4rem); text-transform:uppercase; color:#fff; margin:0 0 0.2rem; letter-spacing:0.02em; }
+.ct-hero__sub { font-family:var(--font-tech); font-size:0.95rem; letter-spacing:0.06em; color:var(--text-muted); }
+.ct-facts { display:flex; gap:2.2rem; flex-wrap:wrap; margin-top:1.1rem; }
+.ct-fact .n { font-family:var(--font-mono); font-weight:800; font-size:1.5rem; color:#fff; }
+.ct-fact .l { font-family:var(--font-tech); font-size:0.62rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-dim); margin-top:3px; }
+.ct-traits { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:0.8rem 2.2rem; margin:0.4rem 0 1.4rem; }
+.ct-trait { display:flex; flex-direction:column; gap:6px; }
+.ct-trait .row { display:flex; justify-content:space-between; font-family:var(--font-tech); font-size:0.74rem; font-weight:700; letter-spacing:0.09em; text-transform:uppercase; color:var(--text-muted); }
+.ct-trait .row b { color:#fff; font-family:var(--font-mono); }
+.ct-trait .bar { height:7px; border-radius:2px; background:rgba(255,255,255,0.06); overflow:hidden; }
+.ct-trait .bar > i { display:block; height:100%; background:linear-gradient(90deg,var(--race-red),#8E0400); box-shadow:0 0 12px var(--race-red-glow); }
+
+/* ================= TIMING TOWER ================= */
+.tower { border:1px solid var(--line-solid); border-radius:4px; overflow:hidden; background:var(--panel-solid); }
+.tower__head, .tower__row {
+  display:grid; grid-template-columns:56px 1fr 130px 92px 78px; align-items:center; gap:10px;
+  padding:0 14px;
+}
+.tower__head {
+  height:38px; font-family:var(--font-tech); font-size:0.68rem; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--text-dim); border-bottom:2px solid var(--race-red);
+  background:rgba(255,255,255,0.02);
+}
+.tower__row { height:46px; border-bottom:1px solid var(--line); transition:background .12s ease; }
+.tower__row:hover { background:rgba(225,6,0,0.06); }
+.tower__row:last-child { border-bottom:none; }
+.tower__pos {
+  font-family:var(--font-display); font-weight:700; font-size:0.95rem; color:var(--text-muted);
+  display:flex; align-items:center; justify-content:center; height:26px; width:34px;
+  border:1px solid var(--line-bright); border-radius:2px;
+}
+.tower__row.p1 .tower__pos { background:var(--race-red); color:#fff; border-color:var(--race-red); box-shadow:0 0 14px var(--race-red-glow); }
+.tower__row.p2 .tower__pos { color:#fff; border-color:rgba(255,255,255,0.4); }
+.tower__row.p3 .tower__pos { color:#fff; border-color:rgba(255,255,255,0.25); }
+.tower__plan { font-family:var(--font-mono); font-size:0.78rem; color:#fff; display:flex; gap:5px; flex-wrap:wrap; }
+.tower__gap { font-family:var(--font-mono); font-weight:700; text-align:right; }
+.tower__gap.lead { color:var(--accent-green); }
+.tower__gap.behind { color:var(--accent-amber); }
+.tw-badge { font-family:var(--font-mono); font-size:0.66rem; font-weight:800; padding:2px 7px; border-radius:2px; }
+
+/* ================= action buttons -> tactile dark controls ================= */
+.stButton > button, [data-testid="stBaseButton-secondary"] {
+  font-family:var(--font-display) !important; font-weight:700 !important;
+  font-size:0.8rem !important; letter-spacing:0.1em !important; text-transform:uppercase;
+  color:#fff !important;
+  background:linear-gradient(180deg,#1C1C21,#141417) !important;
+  border:1px solid var(--line-bright) !important;
+  border-left:3px solid var(--race-red) !important;
+  border-radius:3px !important; padding:0.62rem 1.3rem !important;
+  box-shadow:0 6px 18px -9px rgba(0,0,0,0.75) !important;
+  transition:transform .14s ease, box-shadow .14s ease, background .14s ease, border-color .14s ease !important;
+}
+.stButton > button:hover, [data-testid="stBaseButton-secondary"]:hover {
+  background:linear-gradient(180deg,#26262C,#19191D) !important;
+  border-color:var(--race-red) !important;
+  box-shadow:0 0 0 1px var(--race-red-glow), 0 12px 30px -12px var(--race-red-glow) !important;
+  transform:translateY(-1px) !important;
+}
+.stButton > button:active, [data-testid="stBaseButton-secondary"]:active { transform:translateY(0) !important; }
+.stButton > button:focus-visible { outline:2px solid var(--race-red) !important; outline-offset:2px; }
+
+/* ================= panels get a faint carbon weave ================= */
+[data-testid="stVerticalBlockBorderWrapper"] {
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 6px),
+    linear-gradient(180deg, rgba(22,22,26,0.7), rgba(11,11,13,0.5)) !important;
+  border-color:var(--line-solid) !important; border-radius:6px !important;
+  backdrop-filter:blur(14px);
+}
+
+/* ================= MOTION ================= */
+@keyframes rise { from{opacity:0; transform:translateY(16px)} to{opacity:1; transform:translateY(0)} }
+@keyframes pulse-dot { 0%,100%{opacity:1; transform:scale(1)} 50%{opacity:0.4; transform:scale(0.82)} }
+.reveal { animation:rise .5s cubic-bezier(.2,.7,.2,1) both; }
+.reveal.d1{animation-delay:.05s} .reveal.d2{animation-delay:.12s} .reveal.d3{animation-delay:.2s}
+[data-testid="stPlotlyChart"], [data-testid="stVerticalBlockBorderWrapper"] { animation:rise .45s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; }
+  .hero__media { animation:none !important; }
+}
+
+/* ================= RESPONSIVE ================= */
+@media (max-width: 1000px) {
+  .hero { min-height:62vh; }
+  /* stack every st.columns row into a single logical vertical order */
+  [data-testid="stHorizontalBlock"] { flex-wrap:wrap !important; }
+  [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    flex:1 1 100% !important; min-width:100% !important; width:100% !important;
+  }
+}
+@media (max-width: 680px) {
+  .hero { min-height:70vh; margin-bottom:1.8rem; }
+  .hero__stats { gap:1.4rem; }
+  .tower__head, .tower__row { grid-template-columns:40px 1fr 70px; }
+  .tower__head span:nth-child(3), .tower__row .tower__plan { display:none; }
+  .ct-facts { gap:1.2rem; }
+  .tele-grid { grid-template-columns:repeat(2,1fr) !important; }
+}
+"""
+
+
+def _prep_css(css: str) -> str:
+    """Minify to a single dense line: drop comments, collapse whitespace and
+    tighten punctuation. This keeps the payload small and gives Streamlit's
+    Markdown parser nothing (blank lines, stray '>' / '*' / '---') to trip on
+    inside the injected <style> tag."""
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    css = re.sub(r"\s+", " ", css)
+    css = re.sub(r"\s*([{}:;,])\s*", r"\1", css)
+    return css.strip()
+
+
 def inject_css():
-    """Inject the full console stylesheet. Call once, right after set_page_config."""
-    st.markdown(
-        "<style>" + _FONT_IMPORT + _ROOT_VARS + _STATIC_CSS + "</style>",
-        unsafe_allow_html=True,
-    )
+    """Inject the console stylesheet as separate, minified <style> blocks; the
+    cinematic layer is injected last so its :root overrides and !important
+    rules win over the base console styles."""
+    for block in (_FONT_IMPORT + _ROOT_VARS, _STATIC_CSS, _CINEMATIC_CSS):
+        st.markdown("<style>" + _prep_css(block) + "</style>", unsafe_allow_html=True)
 
 
 # ============================================================================
@@ -1292,3 +1639,117 @@ def plotly_config(*, static: bool = False):
         ],
         "toImageButtonOptions": {"format": "png", "scale": 2, "filename": "f1_telemetry"},
     }
+
+
+# ============================================================================
+# 11 · CINEMATIC COMPONENTS  — hero, broadcast nav, circuit experience, tower
+# ============================================================================
+
+def render_nav_brand(system_status: str = "SYSTEM READY"):
+    """Broadcast-style brand bar sitting above the nav strip."""
+    render_html(
+        f'<div class="nav-brand">'
+        f'<span class="mark">F1</span>'
+        f'<span class="name">Race Simulator</span>'
+        f'<span class="sys">&#9679; {system_status}</span>'
+        f'</div>'
+    )
+
+
+def render_hero(app_name: str = "RACE SIMULATOR",
+                tagline: str = "Simulate. Strategize. Race.",
+                description: str = ("A physics-grade Formula 1 lap-time and pit-strategy engine. "
+                                    "Point-mass vehicle dynamics, hybrid-ERS energy management and "
+                                    "tyre thermal modelling across nine Grand Prix circuits."),
+                stats=None):
+    """Full-bleed cinematic hero. Render the START CTA as a real st.button with
+    key='cta_start' immediately after this call so it reads as the hero control."""
+    stats = stats or []
+    words = app_name.split()
+    if len(words) > 1:
+        head = " ".join(words[:-1]) + f' <span class="accent">{words[-1]}</span>'
+    else:
+        head = f'<span class="accent">{app_name}</span>'
+    # last word of the tagline gets the red accent span
+    tw = tagline.split()
+    tag_html = " ".join(tw[:-1] + [f'<span>{tw[-1]}</span>']) if tw else tagline
+    stat_html = "".join(
+        f'<div class="hero__stat"><div class="n">{n}</div><div class="l">{l}</div></div>'
+        for n, l in stats
+    )
+    render_html(
+        f'<div class="hero">'
+        f'<div class="hero__media" style="background-image:url(\'{ASSETS["hero"]}\')"></div>'
+        f'<div class="hero__grade"></div><div class="hero__vig"></div>'
+        f'<div class="hero__lights"></div>'
+        f'<div class="hero__content">'
+        f'<span class="hero__eyebrow"><span class="live"></span>Live simulation engine</span>'
+        f'<h1>{head}</h1>'
+        f'<div class="hero__tag">{tag_html}</div>'
+        f'<p class="hero__desc">{description}</p>'
+        f'<div class="hero__stats">{stat_html}</div>'
+        f'</div>'
+        f'<div class="hero__scroll">Scroll</div>'
+        f'</div>'
+    )
+
+
+def render_circuit_hero(track_name: str, subtitle: str, facts, traits):
+    """Cinematic circuit banner.
+      facts  : list of (value_str, label)
+      traits : list of (label, pct_0_100, value_str)
+    """
+    tint = CIRCUIT_TINT.get(track_name, "saturate(0.9)")
+    fact_html = "".join(
+        f'<div class="ct-fact"><div class="n">{v}</div><div class="l">{l}</div></div>'
+        for v, l in facts
+    )
+    render_html(
+        f'<div class="ct-hero">'
+        f'<div class="ct-hero__media" style="background-image:url(\'{ASSETS["hero"]}\');filter:{tint}"></div>'
+        f'<div class="ct-hero__grade"></div>'
+        f'<div class="ct-hero__content">'
+        f'<div class="ct-hero__kicker">Circuit Profile</div>'
+        f'<h2>{track_name}</h2>'
+        f'<div class="ct-hero__sub">{subtitle}</div>'
+        f'<div class="ct-facts">{fact_html}</div>'
+        f'</div></div>'
+    )
+    bars = "".join(
+        f'<div class="ct-trait"><div class="row"><span>{label}</span><b>{val}</b></div>'
+        f'<div class="bar"><i style="width:{max(4, min(100, pct)):.0f}%"></i></div></div>'
+        for label, pct, val in traits
+    )
+    render_html(f'<div class="ct-traits">{bars}</div>')
+
+
+def render_timing_tower(results, best_time: float, top_n: int = 10):
+    """Strategy leaderboard rendered as an F1 timing tower."""
+    rows = ""
+    for i, (t, plan) in enumerate(results[:top_n]):
+        gap = t - best_time
+        gap_html = ('<span class="tower__gap lead">LEADER</span>' if gap <= 1e-9
+                    else f'<span class="tower__gap behind">+{gap:.2f}s</span>')
+        badges = ""
+        for compound, laps in plan:
+            fill, fg = COMPOUND_COLORS.get(compound, (COLORS["text_dim"], "#fff"))
+            badges += (f'<span class="tw-badge" style="background:{fill};color:{fg};">'
+                       f'{compound[:1].upper()}{laps}</span>')
+        stops = len(plan) - 1
+        cls = f"tower__row p{i+1}" if i < 3 else "tower__row"
+        rows += (
+            f'<div class="{cls}">'
+            f'<div class="tower__pos">P{i+1}</div>'
+            f'<div class="tower__plan">{badges}</div>'
+            f'<div style="font-family:{FONT_MONO};color:#fff;font-weight:700;text-align:right;">{format_time_local(t)}</div>'
+            f'{gap_html}'
+            f'<div style="font-family:{FONT_TECH};color:{COLORS["text_dim"]};font-weight:700;text-align:center;">{stops}-STOP</div>'
+            f'</div>'
+        )
+    render_html(
+        f'<div class="tower">'
+        f'<div class="tower__head"><span>POS</span><span>TYRE STRATEGY</span>'
+        f'<span style="text-align:right;">RACE TIME</span><span style="text-align:right;">GAP</span>'
+        f'<span style="text-align:center;">STOPS</span></div>'
+        f'{rows}</div>'
+    )
