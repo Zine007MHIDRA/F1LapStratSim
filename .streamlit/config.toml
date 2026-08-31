@@ -1,0 +1,15 @@
+# Pre-hydration theme (before theme.inject_css runs) + deploy-friendly server.
+[theme]
+base = "dark"
+primaryColor = "#00F0FF"
+backgroundColor = "#0B0E14"
+secondaryBackgroundColor = "#141A24"
+textColor = "#EEF2F7"
+font = "sans serif"
+
+[server]
+headless = true
+fileWatcherType = "none"   # no source-watching in production -> less CPU
+
+[browser]
+gatherUsageStats = false

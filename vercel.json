@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "destination": "https://REPLACE-WITH-YOUR-STREAMLIT-URL.streamlit.app/$1",
+      "permanent": false
+    }
+  ]
+}

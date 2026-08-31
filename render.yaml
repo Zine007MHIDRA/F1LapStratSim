@@ -1,0 +1,15 @@
+# Render blueprint -- https://render.com/docs/blueprint-spec
+# Deploy: push this repo to GitHub, then New > Blueprint on the Render dashboard.
+services:
+  - type: web
+    name: f1-pitwall-sim
+    runtime: python
+    plan: free            # free web services sleep after ~15 min idle
+    region: frankfurt     # change to your nearest region
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+    healthCheckPath: /_stcore/health

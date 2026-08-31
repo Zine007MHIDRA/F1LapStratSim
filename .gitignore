@@ -1,6 +1,21 @@
 __pycache__/
 *.pyc
-f1_cache/
+.venv/
 venv/
+env/
+*.egg-info/
+
+# FastF1 telemetry cache + generated plots
+f1_cache/
 *.png
+calibration_comparison_*.png
+track_shapes_test.png
+speed_trace.png
+
+# secrets / local env
+.env
+.streamlit/secrets.toml
+
 .DS_Store
+.idea/
+.vscode/
