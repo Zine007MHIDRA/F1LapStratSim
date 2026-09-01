@@ -164,5 +164,53 @@ class ExpandedCatalogueTests(unittest.TestCase):
                 self.assertLess(abs(sim - ref), 4.0, f"{name}: sim {sim:.2f}s vs ref {ref:.2f}s")
 
 
+class CircuitMetadataTests(unittest.TestCase):
+    REQUIRED_CIRCUITS = ["Monza", "Monaco", "Silverstone", "Spa-Francorchamps", "Suzuka"]
+
+    def test_every_track_has_valid_metadata(self):
+        from track_model import TRACK_METADATA, track_metadata, track_country, track_location, track_flag, track_full_name, track_characteristics
+        for name in TRACKS.keys():
+            with self.subTest(track=name):
+                self.assertIn(name, TRACK_METADATA)
+                meta = track_metadata(name)
+                self.assertEqual(meta.name, name)
+                self.assertTrue(len(track_country(name)) > 0)
+                self.assertTrue(len(track_location(name)) > 0)
+                self.assertTrue(len(track_flag(name)) > 0)
+                self.assertTrue(len(track_full_name(name)) > 0)
+                self.assertTrue(len(track_characteristics(name)) > 0)
+
+    def test_required_circuits_have_distinct_data(self):
+        from track_model import track_metadata, race_laps, pit_loss_for
+        circuit_profiles = set()
+        countries = set()
+        lengths = set()
+
+        for name in self.REQUIRED_CIRCUITS:
+            meta = track_metadata(name)
+            countries.add(meta.country)
+            lap_len = round(total_length(TRACKS[name]))
+            lengths.add(lap_len)
+            n_laps = race_laps(name)
+            n_corners = sum(1 for s in TRACKS[name] if s.kind == "corner")
+            p_loss = pit_loss_for(name)
+            circuit_profiles.add((name, meta.country, lap_len, n_laps, n_corners, p_loss))
+
+        # Every required circuit has a distinct country and unique overall profile
+        self.assertEqual(len(countries), len(self.REQUIRED_CIRCUITS))
+        self.assertEqual(len(lengths), len(self.REQUIRED_CIRCUITS))
+        self.assertEqual(len(circuit_profiles), len(self.REQUIRED_CIRCUITS))
+
+
+    def test_unknown_circuit_neutral_fallback_does_not_default_to_monza(self):
+        from track_model import track_metadata
+        meta = track_metadata("Kyalami")
+        self.assertEqual(meta.name, "Kyalami")
+        self.assertNotEqual(meta.country, "Italy")
+        self.assertEqual(meta.country, "International")
+        self.assertEqual(meta.flag, "🏁")
+
+
 if __name__ == "__main__":
     unittest.main()
+

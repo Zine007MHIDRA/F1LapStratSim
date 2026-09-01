@@ -435,6 +435,12 @@ TRACK_PIT_LOSS_S: Dict[str, float] = {
     "COTA": 22.0,
 }
 
+
+def pit_loss_for(track_name: Optional[str]) -> float:
+    """Estimated pit-lane transit and stationary loss in seconds."""
+    return TRACK_PIT_LOSS_S.get(track_name, 22.0)
+
+
 # Ambient environment per circuit, used by car_model.air_density() to compute a
 # real air density (drag + downforce both scale with rho) instead of a fixed
 # 1.225 kg/m^3. altitude_m from public elevation data; track_temp_c is a
@@ -497,6 +503,170 @@ TRACK_TYRE_STRESS: Dict[str, float] = {
     "Interlagos":        1.05,
     "COTA":              1.15,
 }
+
+
+
+# ============================================================================
+# TRACK METADATA & PROFILE INFORMATION (Single Source of Truth)
+# ============================================================================
+
+@dataclass
+class TrackMetadata:
+    key: str
+    name: str
+    full_name: str
+    country: str
+    location: str
+    flag: str
+    characteristics: str
+    direction: str = "Clockwise"
+    lap_record: str = ""
+
+
+TRACK_METADATA: Dict[str, TrackMetadata] = {
+    "Monza": TrackMetadata(
+        key="Monza",
+        name="Monza",
+        full_name="Autodromo Nazionale Monza",
+        country="Italy",
+        location="Monza, Lombardy, Italy",
+        flag="🇮🇹",
+        characteristics="Temple of Speed · Ultra-low downforce & heavy chicane braking",
+        direction="Clockwise",
+        lap_record="1:18.792 (2025, Verstappen)",
+    ),
+    "Silverstone": TrackMetadata(
+        key="Silverstone",
+        name="Silverstone",
+        full_name="Silverstone Circuit",
+        country="Great Britain",
+        location="Silverstone, Northamptonshire, UK",
+        flag="🇬🇧",
+        characteristics="High-speed flow · Iconic Maggotts/Becketts aerodynamic sweeps",
+        direction="Clockwise",
+        lap_record="1:24.890 (2025, Verstappen)",
+    ),
+    "Spa-Francorchamps": TrackMetadata(
+        key="Spa-Francorchamps",
+        name="Spa-Francorchamps",
+        full_name="Circuit de Spa-Francorchamps",
+        country="Belgium",
+        location="Stavelot, Ardennes, Belgium",
+        flag="🇧🇪",
+        characteristics="Ardennes roller-coaster · Eau Rouge, Kemmel Straight & elevation",
+        direction="Clockwise",
+        lap_record="1:40.560 (2025, Antonelli)",
+    ),
+    "Monaco": TrackMetadata(
+        key="Monaco",
+        name="Monaco",
+        full_name="Circuit de Monaco",
+        country="Monaco",
+        location="Monte Carlo, Principality of Monaco",
+        flag="🇲🇨",
+        characteristics="Historic street circuit · High mechanical grip & barrier proximity",
+        direction="Clockwise",
+        lap_record="1:09.954 (2025, Norris)",
+    ),
+    "Suzuka": TrackMetadata(
+        key="Suzuka",
+        name="Suzuka",
+        full_name="Suzuka International Racing Course",
+        country="Japan",
+        location="Suzuka, Mie Prefecture, Japan",
+        flag="🇯🇵",
+        characteristics="Figure-8 classic · Technical high-G S-Curves, Spoon & 130R",
+        direction="Figure-8 (Clockwise/Anti-clockwise)",
+        lap_record="1:26.983 (2025, Verstappen)",
+    ),
+    "Bahrain": TrackMetadata(
+        key="Bahrain",
+        name="Bahrain",
+        full_name="Bahrain International Circuit",
+        country="Bahrain",
+        location="Sakhir, Kingdom of Bahrain",
+        flag="🇧🇭",
+        characteristics="Desert night race · Heavy traction demands & thermal tyre degradation",
+        direction="Clockwise",
+        lap_record="1:29.841 (2025, Piastri)",
+    ),
+    "Red Bull Ring": TrackMetadata(
+        key="Red Bull Ring",
+        name="Red Bull Ring",
+        full_name="Red Bull Ring",
+        country="Austria",
+        location="Spielberg, Styria, Austria",
+        flag="🇦🇹",
+        characteristics="Alpine power circuit · High altitude, short lap & heavy braking zones",
+        direction="Clockwise",
+        lap_record="1:03.971 (2025, Norris)",
+    ),
+    "Interlagos": TrackMetadata(
+        key="Interlagos",
+        name="Interlagos",
+        full_name="Autódromo José Carlos Pace",
+        country="Brazil",
+        location="São Paulo, Brazil",
+        flag="🇧🇷",
+        characteristics="Anti-clockwise amphitheatre · Senna 'S', high altitude & uphill drag",
+        direction="Anti-clockwise",
+        lap_record="1:10.727 (2023, Verstappen)",
+    ),
+    "COTA": TrackMetadata(
+        key="COTA",
+        name="COTA",
+        full_name="Circuit of the Americas",
+        country="United States",
+        location="Austin, Texas, USA",
+        flag="🇺🇸",
+        characteristics="Modern elevation powerhouse · Steep T1 climb & technical stadium section",
+        direction="Anti-clockwise",
+        lap_record="1:32.143 (2025, Verstappen)",
+    ),
+}
+
+
+def track_metadata(track_name: Optional[str]) -> TrackMetadata:
+    """Returns the TrackMetadata for the given circuit. If unknown, gracefully returns
+    a neutral generic TrackMetadata object rather than falling back to any specific track."""
+    if track_name and track_name in TRACK_METADATA:
+        return TRACK_METADATA[track_name]
+    name_str = str(track_name) if track_name else "Custom Circuit"
+    return TrackMetadata(
+        key=name_str,
+        name=name_str,
+        full_name=f"{name_str} Grand Prix Circuit",
+        country="International",
+        location="Global Motorsport Venue",
+        flag="🏁",
+        characteristics="Custom racing circuit layout with dynamic vehicle dynamics modeling",
+        direction="Clockwise",
+        lap_record="N/A",
+    )
+
+
+def track_country(track_name: Optional[str]) -> str:
+    return track_metadata(track_name).country
+
+
+def track_location(track_name: Optional[str]) -> str:
+    return track_metadata(track_name).location
+
+
+def track_full_name(track_name: Optional[str]) -> str:
+    return track_metadata(track_name).full_name
+
+
+def track_characteristics(track_name: Optional[str]) -> str:
+    return track_metadata(track_name).characteristics
+
+
+def track_direction(track_name: Optional[str]) -> str:
+    return track_metadata(track_name).direction
+
+
+def track_flag(track_name: Optional[str]) -> str:
+    return track_metadata(track_name).flag
 
 
 def tyre_stress(track_name: Optional[str]) -> float:
@@ -585,3 +755,4 @@ if __name__ == "__main__":
                             for seg in segs if seg.kind == "corner") * 180 / np.pi
         print(f"{name}: {total_length(segs):.0f} m, {n_corners} corner segments, "
               f"net turn {net_turn_deg:+.0f} deg (should be near +-360)")
+

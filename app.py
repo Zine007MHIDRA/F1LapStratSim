@@ -28,6 +28,8 @@ from strategy_optimizer import (
 from track_geometry import compute_track_xy
 from track_model import (
     TRACKS, total_length, race_laps, tyre_stress, drs_zone_count,
+    track_metadata, track_country, track_location, track_flag,
+    track_full_name, track_characteristics, track_direction,
 )
 from tyre_model import COMPOUNDS
 from validation import validate_lap_result
@@ -46,6 +48,13 @@ CFG = theme.plotly_config()
 
 VIEWS = ["OVERVIEW", "SIMULATOR", "CIRCUITS", "REGULATIONS", "STRATEGY", "TRACK MAP"]
 
+# ---------------------------------------------------------------------------
+# GLOBAL STATE: Single source of truth for selected circuit
+# ---------------------------------------------------------------------------
+track_list = list(TRACKS.keys())
+if "selected_track" not in st.session_state or st.session_state["selected_track"] not in track_list:
+    st.session_state["selected_track"] = track_list[0]
+
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -59,9 +68,10 @@ def _sync_race_laps(widget_key: str):
     """Auto-sync a 'Total Race Laps' input to the selected circuit's real GP
     distance, re-syncing on track change while keeping manual +/- adjustments."""
     guard = f"_racelaps_track_{widget_key}"
-    if st.session_state.get(guard) != track_name:
-        st.session_state[widget_key] = race_laps(track_name)
-        st.session_state[guard] = track_name
+    cur_track = st.session_state.get("selected_track", track_list[0])
+    if st.session_state.get(guard) != cur_track:
+        st.session_state[widget_key] = race_laps(cur_track)
+        st.session_state[guard] = cur_track
 
 
 def _goto(view: str):
@@ -92,6 +102,7 @@ def _spec_card(label, car, is_2026):
 
 def _circuit_profile(name, segments, car):
     """Real circuit facts + 0-100 character ratings, computed from geometry."""
+    meta = track_metadata(name)
     n_corners = sum(1 for s in segments if s.kind == "corner")
     lap_len = total_length(segments)
     straights = [s.length for s in segments if s.kind == "straight"]
@@ -102,6 +113,7 @@ def _circuit_profile(name, segments, car):
     cla = getattr(car, "corner_ClA", None) or car.ClA
 
     facts = [
+        (f"{meta.flag} {meta.country}", "VENUE / REGION"),
         (f"{n_corners}", "TURNS"),
         (f"{lap_len/1000:.3f} KM", "LAP LENGTH"),
         (f"{race_laps(name)}", "RACE LAPS"),
@@ -128,7 +140,7 @@ def _outline_figure(segments, height=320):
     fig.add_trace(go.Scatter(x=[x[0]], y=[y[0]], mode="markers",
                              marker=dict(symbol="square", size=11, color="#fff"), hoverinfo="skip"))
     fig.update_layout(**theme.themed_layout_kwargs(height=height, transparent=True, unified_hover=False))
-    fig.update_layout(title=None, showlegend=False, margin=dict(t=10, b=10, l=10, r=10),
+    fig.update_layout(title=dict(text=""), showlegend=False, margin=dict(t=10, b=10, l=10, r=10),
                       xaxis=dict(visible=False, scaleanchor="y", scaleratio=1),
                       yaxis=dict(visible=False))
     return fig
@@ -141,11 +153,28 @@ with st.sidebar:
     theme.sidebar_mission_control()
 
     st.markdown("### Race Configuration")
-    track_name = st.selectbox("Grand Prix Circuit", list(TRACKS.keys()), index=0)
+
+    def _on_sidebar_track_change():
+        st.session_state["selected_track"] = st.session_state["sidebar_track_select"]
+
+    current_track_idx = track_list.index(st.session_state["selected_track"])
+    track_name = st.selectbox(
+        "Grand Prix Circuit",
+        track_list,
+        index=current_track_idx,
+        key="sidebar_track_select",
+        on_change=_on_sidebar_track_change,
+    )
+    st.session_state["selected_track"] = track_name
+
     TRACK = TRACKS[track_name]
     LAP_LENGTH = total_length(TRACK)
     pit_loss = pit_loss_for(track_name)
-    theme.render_track_card(track_name, LAP_LENGTH, pit_loss, TRACK)
+    meta = track_metadata(track_name)
+    theme.render_track_card(
+        track_name, LAP_LENGTH, pit_loss, TRACK,
+        country=meta.country, flag=meta.flag, location=meta.location,
+    )
 
     st.markdown("### The Machine")
     car_choice = st.radio(
@@ -402,32 +431,82 @@ elif view == "SIMULATOR":
 # CIRCUITS  —  the circuit experience
 # ===========================================================================
 elif view == "CIRCUITS":
-    facts, traits = _circuit_profile(track_name, TRACK, car)
-    subtitle = (f"{sum(1 for s in TRACK if s.kind == 'corner')} turns · "
-                f"{drs_zone_count(TRACK)} DRS zones · driven "
-                f"{'anti-clockwise' if track_name in ('Interlagos', 'COTA') else 'clockwise'}")
-    theme.render_circuit_hero(track_name, subtitle, facts, traits)
+    # In-page circuit selector bar for instant dynamic switching
+    theme.section("Grand Prix Circuit Selection",
+                  "Explore layout geometry, aerodynamic character and telemetry benchmarks across all championship tracks.")
 
-    lay, ray = st.columns([1.6, 1], gap="large")
+    c_sel, c_info = st.columns([1.4, 2.6], gap="medium")
+    with c_sel:
+        def _on_circuits_tab_track_change():
+            st.session_state["selected_track"] = st.session_state["circuits_tab_track_select"]
+            st.session_state["sidebar_track_select"] = st.session_state["circuits_tab_track_select"]
+
+        active_idx = track_list.index(st.session_state["selected_track"])
+        chosen_track = st.selectbox(
+            "Select Grand Prix Venue",
+            track_list,
+            index=active_idx,
+            key="circuits_tab_track_select",
+            on_change=_on_circuits_tab_track_change,
+        )
+        if chosen_track != track_name:
+            st.session_state["selected_track"] = chosen_track
+            st.session_state["sidebar_track_select"] = chosen_track
+            st.rerun()
+
+    with c_info:
+        meta_info = track_metadata(st.session_state["selected_track"])
+        theme.render_html(
+            f'<div style="display:flex;align-items:center;gap:14px;padding:0.6rem 0.9rem;'
+            f'background:rgba(255,255,255,0.025);border:1px solid var(--line-solid);border-radius:4px;">'
+            f'<span style="font-size:1.8rem;line-height:1;">{meta_info.flag}</span>'
+            f'<div>'
+            f'<div style="font-family:var(--font-display);font-size:0.95rem;font-weight:700;color:#fff;letter-spacing:0.05em;">{meta_info.full_name}</div>'
+            f'<div style="font-family:var(--font-tech);font-size:0.75rem;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;">{meta_info.location} &bull; {meta_info.direction} &bull; LAP RECORD: {meta_info.lap_record}</div>'
+            f'</div></div>'
+        )
+
+    # Re-fetch active track objects based on the updated session state
+    current_track_name = st.session_state["selected_track"]
+    CURR_TRACK = TRACKS[current_track_name]
+    CURR_LAP_LENGTH = total_length(CURR_TRACK)
+    curr_pit_loss = pit_loss_for(current_track_name)
+    curr_meta = track_metadata(current_track_name)
+
+    facts, traits = _circuit_profile(current_track_name, CURR_TRACK, car)
+    subtitle = (f"{sum(1 for s in CURR_TRACK if s.kind == 'corner')} turns · "
+                f"{drs_zone_count(CURR_TRACK)} DRS zones · driven {curr_meta.direction.lower()}")
+
+    theme.render_circuit_hero(
+        current_track_name, subtitle, facts, traits,
+        country=curr_meta.country, location=curr_meta.location, flag=curr_meta.flag,
+        full_name=curr_meta.full_name, characteristics=curr_meta.characteristics,
+    )
+
+    lay, ray = st.columns([1.5, 1.1], gap="large")
     with lay:
         theme.section("Circuit character",
                       "Ratings derived from the segment model — straight fraction, DRS geometry, "
                       "tyre energy load and cornering downforce.")
-        st.caption("Switch circuits from the Race Configuration panel on the left.")
-        theme.render_track_card(track_name, LAP_LENGTH, pit_loss, TRACK)
+        theme.render_track_card(
+            current_track_name, CURR_LAP_LENGTH, curr_pit_loss, CURR_TRACK,
+            country=curr_meta.country, flag=curr_meta.flag, location=curr_meta.location,
+        )
     with ray:
-        theme.section("Layout")
-        st.plotly_chart(_outline_figure(TRACK, height=360), config=theme.plotly_config(static=True),
+        theme.section("Layout Geometry")
+        st.plotly_chart(_outline_figure(CURR_TRACK, height=360),
+                        config=theme.plotly_config(static=True),
                         width="stretch")
 
     theme.section("Corner-by-corner reference",
-                  "Apex / entry / exit speeds from the current machine's qualifying lap.")
-    ck = f"{track_name}|{car_label}"
+                  f"Apex / entry / exit speeds from the current machine's qualifying lap at {current_track_name}.")
+    ck = f"{current_track_name}|{car_label}"
     if st.session_state.get("_circ_key") != ck:
-        with st.spinner(f"Solving a reference lap at {track_name}…"):
-            st.session_state["_circ_result"] = simulate_lap(TRACK, car, step=3.0, track_name=track_name)
+        with st.spinner(f"Solving a reference lap at {current_track_name}…"):
+            st.session_state["_circ_result"] = simulate_lap(CURR_TRACK, car, step=3.0, track_name=current_track_name)
             st.session_state["_circ_key"] = ck
-    theme.render_corner_table(TRACK, st.session_state["_circ_result"])
+    theme.render_corner_table(CURR_TRACK, st.session_state["_circ_result"])
+
 
 
 # ===========================================================================

@@ -115,18 +115,35 @@ ASSETS = {
     "garage": _img("1547037456-0672aaf62970", 1500, 50),     # car in a lit garage bay
 }
 
-# Per-circuit hero tint — a hue rotation layered over the shared track photo so
-# each circuit page still reads as its own place without shipping 9 images.
+# Per-circuit hero photography — a distinct openly-licensed motorsport frame for
+# each Grand Prix venue (Unsplash License). Falls back to ASSETS["hero"] for any
+# circuit without a dedicated shot. Every frame still sits behind the same heavy
+# dark grade in .ct-hero__grade, so text stays readable.
+CIRCUIT_PHOTOS = {
+    "Monza":             _img("1662975689703-361179bb60d9", 1800, 55),  # Monza start-finish straight
+    "Silverstone":       _img("1664911200744-8c3a496baa2a", 1800, 55),  # pack of cars, Silverstone
+    "Spa-Francorchamps": _img("1781787047756-1bc7d3a29415", 1800, 55),  # car at speed, Ardennes green
+    "Monaco":            _img("1752884991461-8ac432ad9266", 1800, 55),  # F1 train uphill, Monaco GP
+    "Suzuka":            _img("1775647733422-2f4eec7dcbb4", 1800, 55),  # Suzuka, Honda grandstand
+    "Bahrain":           _img("1706992368824-75d6240002d2", 1800, 55),  # Manama night, floodlit
+    "Red Bull Ring":     _img("1746433444303-f8e1dfdac12a", 1800, 55),  # cars through a fast curve
+    "Interlagos":        _img("1659471486799-69cc264b6229", 1800, 55),  # single car, São Paulo
+    "COTA":              _img("1785466588773-f5859a7c814e", 1800, 55),  # COTA star run-off turn
+}
+
+# A gentle per-circuit finishing grade layered over the photo above — subtle
+# saturation / brightness / contrast only (no hue rotation now that each venue
+# has its own frame), so the set still reads as one consistent broadcast look.
 CIRCUIT_TINT = {
-    "Monza":             "hue-rotate(-8deg) saturate(1.05)",
-    "Silverstone":       "hue-rotate(180deg) saturate(0.7) brightness(0.92)",
-    "Spa-Francorchamps": "hue-rotate(120deg) saturate(0.8)",
-    "Monaco":            "hue-rotate(35deg) saturate(1.1)",
-    "Suzuka":            "hue-rotate(210deg) saturate(0.9)",
-    "Bahrain":           "hue-rotate(-25deg) saturate(1.2) brightness(1.02)",
-    "Red Bull Ring":     "hue-rotate(150deg) saturate(0.85)",
-    "Interlagos":        "hue-rotate(95deg) saturate(1.0)",
-    "COTA":              "hue-rotate(-15deg) saturate(1.05)",
+    "Monza":             "saturate(1.05) contrast(1.04)",
+    "Silverstone":       "saturate(0.92) brightness(0.96) contrast(1.05)",
+    "Spa-Francorchamps": "saturate(1.0) brightness(0.94) contrast(1.06)",
+    "Monaco":            "saturate(1.08) contrast(1.03)",
+    "Suzuka":            "saturate(0.96) brightness(0.95) contrast(1.05)",
+    "Bahrain":           "saturate(1.1) brightness(1.02) contrast(1.05)",
+    "Red Bull Ring":     "saturate(1.0) brightness(0.97) contrast(1.05)",
+    "Interlagos":        "saturate(1.02) contrast(1.04)",
+    "COTA":              "saturate(1.05) contrast(1.04)",
 }
 
 # Illustrative circuit conditions for the status ticker. These are static
@@ -969,9 +986,34 @@ _CINEMATIC_CSS = """
              linear-gradient(90deg,rgba(7,7,7,0.9),transparent 60%);
 }
 .ct-hero__content { position:relative; z-index:2; padding:0 clamp(1.4rem,5vw,4rem) 1.8rem; width:100%; max-width:1440px; margin:0 auto; }
-.ct-hero__kicker { font-family:var(--font-mono); font-size:0.7rem; letter-spacing:0.3em; text-transform:uppercase; color:var(--race-red); margin-bottom:0.4rem; }
-.ct-hero h2 { font-family:var(--font-display); font-weight:700; font-size:clamp(2rem,5vw,3.4rem); text-transform:uppercase; color:#fff; margin:0 0 0.2rem; letter-spacing:0.02em; }
+.ct-hero__kicker {
+  display:inline-flex; align-items:center; gap:8px;
+  font-family:var(--font-mono); font-size:0.72rem; letter-spacing:0.25em;
+  text-transform:uppercase; color:var(--race-red); margin-bottom:0.4rem;
+}
+.ct-hero__kicker .ct-flag { font-size:1.15rem; line-height:1; }
+.ct-hero h2 {
+  font-family:var(--font-display); font-weight:700;
+  font-size:clamp(2rem,5vw,3.4rem); text-transform:uppercase;
+  color:#fff; margin:0 0 0.15rem; letter-spacing:0.02em;
+}
+.ct-hero__fullname {
+  font-family:var(--font-tech); font-size:1.05rem; font-weight:600;
+  letter-spacing:0.08em; text-transform:uppercase; color:var(--accent-cyan);
+  margin-bottom:0.35rem;
+}
 .ct-hero__sub { font-family:var(--font-tech); font-size:0.95rem; letter-spacing:0.06em; color:var(--text-muted); }
+.ct-hero__chars {
+  font-family:var(--font-body); font-size:0.88rem; color:var(--text-muted);
+  line-height:1.5; margin-top:0.4rem; max-width:65ch;
+  border-left:2px solid var(--race-red); padding-left:10px;
+}
+.ct-placeholder-badge {
+  display:inline-block; font-family:var(--font-mono); font-size:0.62rem;
+  letter-spacing:0.18em; text-transform:uppercase; color:var(--accent-cyan);
+  background:rgba(0,240,255,0.08); border:1px solid rgba(0,240,255,0.25);
+  padding:2px 8px; border-radius:2px; margin-left:8px; vertical-align:middle;
+}
 .ct-facts { display:flex; gap:2.2rem; flex-wrap:wrap; margin-top:1.1rem; }
 .ct-fact .n { font-family:var(--font-mono); font-weight:800; font-size:1.5rem; color:#fff; }
 .ct-fact .l { font-family:var(--font-tech); font-size:0.62rem; letter-spacing:0.15em; text-transform:uppercase; color:var(--text-dim); margin-top:3px; }
@@ -981,6 +1023,7 @@ _CINEMATIC_CSS = """
 .ct-trait .row b { color:#fff; font-family:var(--font-mono); }
 .ct-trait .bar { height:7px; border-radius:2px; background:rgba(255,255,255,0.06); overflow:hidden; }
 .ct-trait .bar > i { display:block; height:100%; background:linear-gradient(90deg,var(--race-red),#8E0400); box-shadow:0 0 12px var(--race-red-glow); }
+
 
 /* ================= TIMING TOWER ================= */
 .tower { border:1px solid var(--line-solid); border-radius:4px; overflow:hidden; background:var(--panel-solid); }
@@ -1068,6 +1111,43 @@ _CINEMATIC_CSS = """
   .ct-facts { gap:1.2rem; }
   .tele-grid { grid-template-columns:repeat(2,1fr) !important; }
 }
+
+/* ================= NAV -> HERO SEAM ================= */
+/* Kill the residual gap between the sticky nav strip and the full-bleed hero
+   so the hero reads as bolted directly to the broadcast bar. */
+.st-key-nav_bar { margin-bottom:0 !important; padding-bottom:0 !important; }
+.st-key-nav_bar [role="radiogroup"] { border-bottom-width:2px; }
+[data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"]:has(> div .hero) { gap:0 !important; }
+.hero { margin-top:-1.5rem; }
+@media (max-width: 1000px) { .hero { margin-top:-1.2rem; } }
+
+/* ================= KPI READOUTS -> ENGINEERING PANELS ================= */
+/* Sharpen the telemetry cards to sit in the same visual language as the timing
+   tower and carbon instrument panels: square corners, hairline dividers instead
+   of glow, flat mono values. */
+.tele-grid {
+  gap:1px !important; background:var(--line-solid);
+  border:1px solid var(--line-solid); border-radius:4px; overflow:hidden;
+}
+.tele-card {
+  border:0 !important; border-radius:0 !important;
+  background:var(--panel-solid) !important; backdrop-filter:none !important;
+  padding:0.9rem 1.05rem 0.95rem;
+  transition:background .14s ease !important;
+}
+.tele-card::before { width:2px; box-shadow:none; }
+.tele-card::after { display:none; }
+.tele-card:hover {
+  transform:none !important; border:0 !important;
+  background:#17171B !important; box-shadow:none !important;
+}
+.tele-label { color:var(--text-dim); font-size:0.66rem; letter-spacing:0.15em; }
+.tele-value {
+  text-shadow:none; font-size:1.58rem; letter-spacing:-0.01em;
+}
+.tele-sub { color:var(--text-dim); }
+.tele-trend { border-radius:2px; }
+@media (max-width: 680px) { .tele-value { font-size:1.4rem; } }
 """
 
 
@@ -1247,20 +1327,26 @@ def render_readout_row(items):
 # 6 · CIRCUIT CARD
 # ============================================================================
 
-def render_track_card(track_name: str, lap_length: float, pit_loss: float, segments):
+def render_track_card(track_name: str, lap_length: float, pit_loss: float, segments,
+                      country: str = "", flag: str = "", location: str = ""):
+    """Render a tactical circuit profile card with location and key stats."""
     n_corners = sum(1 for s in segments if s.kind == "corner")
     straights = sum(s.length for s in segments if s.kind == "straight")
     straight_pct = (straights / lap_length * 100) if lap_length else 0
+    flag_html = f'<span style="font-size:1.1rem;margin-right:6px;">{flag}</span>' if flag else '&#128205; '
+    loc_sub = f'<div style="font-family:var(--font-tech);font-size:0.75rem;color:var(--text-muted);letter-spacing:0.06em;margin-top:2px;">{location or country}</div>' if (location or country) else ''
 
     render_html(
         f'<div class="circuit-card">'
-        f'<div class="circuit-title">&#128205; {track_name}</div>'
+        f'<div class="circuit-title">{flag_html}{track_name}</div>'
+        f'{loc_sub}'
         f'<div class="circuit-row"><span class="k">Lap Length</span><span class="v">{lap_length:,.0f} m</span></div>'
         f'<div class="circuit-row"><span class="k">Corner Segments</span><span class="v">{n_corners}</span></div>'
         f'<div class="circuit-row"><span class="k">Full-Throttle</span><span class="v">~{straight_pct:.0f}%</span></div>'
         f'<div class="circuit-row"><span class="k">Pit Lane Delta</span><span class="v">~{pit_loss:.1f}s</span></div>'
         f'</div>'
     )
+
 
 
 # ============================================================================
@@ -1694,24 +1780,53 @@ def render_hero(app_name: str = "RACE SIMULATOR",
     )
 
 
-def render_circuit_hero(track_name: str, subtitle: str, facts, traits):
-    """Cinematic circuit banner.
-      facts  : list of (value_str, label)
-      traits : list of (label, pct_0_100, value_str)
+def render_circuit_hero(track_name: str, subtitle: str, facts, traits,
+                        country: str = "", location: str = "", flag: str = "",
+                        full_name: str = "", characteristics: str = ""):
+    """Cinematic circuit banner with dynamic metadata and neutral fallback.
+      facts           : list of (value_str, label)
+      traits          : list of (label, pct_0_100, value_str)
+      country/location: location strings with national flag
+      full_name       : official grand prix venue title
+      characteristics : track character summary
     """
-    tint = CIRCUIT_TINT.get(track_name, "saturate(0.9)")
+    photo = CIRCUIT_PHOTOS.get(track_name)
+    tint = CIRCUIT_TINT.get(track_name, "saturate(1.0) contrast(1.04)")
+
+    # Dedicated neutral blueprint placeholder if no custom photography exists
+    if photo:
+        media_html = f'<div class="ct-hero__media" style="background-image:url(\'{photo}\');filter:{tint};"></div>'
+        badge_html = ""
+    else:
+        media_html = (
+            '<div class="ct-hero__media" style="'
+            'background: radial-gradient(circle at 50% 35%, rgba(0, 240, 255, 0.12) 0%, rgba(11, 14, 20, 0.96) 75%), '
+            'repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 24px), '
+            'repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 24px);'
+            '"></div>'
+        )
+        badge_html = '<span class="ct-placeholder-badge">&#9632; BLUEPRINT MODE</span>'
+
+    flag_span = f'<span class="ct-flag">{flag}</span> ' if flag else ''
+    kicker_text = f"{flag_span}{location or country or 'Circuit Profile'}"
+
+    fullname_html = f'<div class="ct-hero__fullname">{full_name}</div>' if full_name else ''
+    chars_html = f'<div class="ct-hero__chars">{characteristics}</div>' if characteristics else ''
+
     fact_html = "".join(
         f'<div class="ct-fact"><div class="n">{v}</div><div class="l">{l}</div></div>'
         for v, l in facts
     )
     render_html(
         f'<div class="ct-hero">'
-        f'<div class="ct-hero__media" style="background-image:url(\'{ASSETS["hero"]}\');filter:{tint}"></div>'
+        f'{media_html}'
         f'<div class="ct-hero__grade"></div>'
         f'<div class="ct-hero__content">'
-        f'<div class="ct-hero__kicker">Circuit Profile</div>'
+        f'<div class="ct-hero__kicker">{kicker_text}{badge_html}</div>'
         f'<h2>{track_name}</h2>'
+        f'{fullname_html}'
         f'<div class="ct-hero__sub">{subtitle}</div>'
+        f'{chars_html}'
         f'<div class="ct-facts">{fact_html}</div>'
         f'</div></div>'
     )
@@ -1721,6 +1836,7 @@ def render_circuit_hero(track_name: str, subtitle: str, facts, traits):
         for label, pct, val in traits
     )
     render_html(f'<div class="ct-traits">{bars}</div>')
+
 
 
 def render_timing_tower(results, best_time: float, top_n: int = 10):
