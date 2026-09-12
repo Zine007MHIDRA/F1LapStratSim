@@ -3,7 +3,7 @@ validate_fastf1.py
 
 Calibration / validation harness for the lap-time engine.
 
-Two modes:
+Three modes:
 
   DRY-RUN (default, no network)     python validate_fastf1.py
     Compares simulated qualifying lap times against the hard-coded
@@ -21,6 +21,14 @@ Two modes:
     Requires `pip install fastf1` and unrestricted internet (FastF1 pulls
     from the F1 live-timing servers). Results are cached under ./f1_cache.
 
+  OPTIMIZE (calibration search)     python validate_fastf1.py --optimize --year 2025
+    For each target track (default: the 6 not-yet-calibrated circuits), pulls
+    the real fastest qualifying lap and searches CdA/ClA (2025-spec fixed
+    aero) for the pair that best matches the real lap time + full speed
+    trace, with top_speed_kmh read directly from the real telemetry's max
+    speed. Prints a ready-to-paste car_2025() preset dict per track. This
+    does NOT edit any source file -- it only prints suggestions.
+
 The engine is a point-mass quasi-static solver; ~0.3-1.5 s lap-time MAE and
 ~5-10 km/h speed-trace MAE is the expected accuracy band for this class of
 model without per-corner telemetry fitting.
@@ -29,6 +37,7 @@ model without per-corner telemetry fitting.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import math
 import os
 import sys
@@ -40,6 +49,10 @@ from lap_sim import simulate_lap
 from track_model import TRACKS, TRACK_POLE_BENCHMARKS, total_length
 
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "f1_cache")
+
+# Circuits added without FastF1-verified aero presets yet (see the
+# "# TODO calibrate" markers in car_model.py's car_2025() preset dict).
+NEEDS_CALIBRATION = ("Monaco", "Suzuka", "Bahrain", "Red Bull Ring", "Interlagos", "COTA")
 
 # our track name -> (FastF1 event identifier, needs 'Q' session)
 FASTF1_EVENT = {
@@ -117,6 +130,41 @@ def dry_run(step: float = 2.0):
 
 
 # ---------------------------------------------------------------------------
+# fastf1: shared real-lap loader
+# ---------------------------------------------------------------------------
+
+def _load_real_lap(fastf1_mod, name: str, year: int):
+    """Load one real fastest-qualifying-lap's telemetry for `name`/`year`.
+
+    Returns dict(real_lap, real_dist, real_speed, real_vmax, driver), or None
+    (after printing the failure) if the session can't be loaded.
+    """
+    try:
+        session = fastf1_mod.get_session(year, FASTF1_EVENT.get(name, name), "Q")
+        session.load(telemetry=True, laps=True, weather=False)
+        lap = session.laps.pick_fastest()
+        tel = lap.get_car_data().add_distance()
+        real_dist = tel["Distance"].to_numpy()
+        real_speed = tel["Speed"].to_numpy()
+        return dict(
+            real_lap=lap["LapTime"].total_seconds(),
+            real_dist=real_dist,
+            real_speed=real_speed,
+            real_vmax=float(np.nanmax(real_speed)),
+            driver=lap["Driver"],
+        )
+    except Exception as exc:  # noqa: BLE001 - many network/parsing failure modes
+        print(f"{name:22s}  FastF1 load failed: {exc}")
+        return None
+
+
+def _resample_real(real: dict, lap_len: float):
+    """Resample a loaded real lap's speed trace onto our schematic lap length."""
+    real_scaled = real["real_dist"] * (lap_len / max(real["real_dist"].max(), 1.0))
+    return _resample_trace(real_scaled, real["real_speed"], lap_len)
+
+
+# ---------------------------------------------------------------------------
 # fastf1: sim vs real telemetry
 # ---------------------------------------------------------------------------
 
@@ -144,36 +192,25 @@ def fastf1_run(year: int, era: str = "auto", step: float = 2.0, only=None):
             print(f"{name:22s}  (unknown track)")
             continue
         segs = TRACKS[name]
-        try:
-            session = fastf1.get_session(year, FASTF1_EVENT.get(name, name), "Q")
-            session.load(telemetry=True, laps=True, weather=False)
-            lap = session.laps.pick_fastest()
-            tel = lap.get_car_data().add_distance()
-            real_dist = tel["Distance"].to_numpy()
-            real_speed = tel["Speed"].to_numpy()
-            real_lap = lap["LapTime"].total_seconds()
-        except Exception as exc:  # noqa: BLE001 - many network/parsing failure modes
-            print(f"{name:22s}  FastF1 load failed: {exc}")
+        real = _load_real_lap(fastf1, name, year)
+        if real is None:
             continue
 
+        lap_len = total_length(segs)
         sim = simulate_lap(segs, factory(name), step=step, track_name=name)
         sim_lap = sim["lap_time"]
         sim_speed_kmh = sim["v_profile"] * 3.6
         sim_vmax = float(sim_speed_kmh.max())
-        real_vmax = float(np.nanmax(real_speed))
 
-        lap_len = total_length(segs)
         _, sim_rs = _resample_trace(sim["s"], sim_speed_kmh, lap_len)
-        # scale real distance axis onto our schematic lap length before comparing
-        real_scaled = real_dist * (lap_len / max(real_dist.max(), 1.0))
-        _, real_rs = _resample_trace(real_scaled, real_speed, lap_len)
+        _, real_rs = _resample_real(real, lap_len)
         mae = float(np.mean(np.abs(sim_rs - real_rs)))
 
-        lap_err.append(sim_lap - real_lap)
-        vmax_err.append(sim_vmax - real_vmax)
+        lap_err.append(sim_lap - real["real_lap"])
+        vmax_err.append(sim_vmax - real["real_vmax"])
         trace_mae.append(mae)
-        print(f"{name:22s}  {sim_lap:8.2f} {real_lap:8.2f} {sim_lap-real_lap:+7.2f}   "
-              f"{sim_vmax:8.1f} {real_vmax:9.1f} {sim_vmax-real_vmax:+7.1f}   {mae:9.1f}")
+        print(f"{name:22s}  {sim_lap:8.2f} {real['real_lap']:8.2f} {sim_lap-real['real_lap']:+7.2f}   "
+              f"{sim_vmax:8.1f} {real['real_vmax']:9.1f} {sim_vmax-real['real_vmax']:+7.1f}   {mae:9.1f}")
 
     print("-" * len(header))
     print(f"lap-time   MAE = {_mae(lap_err):6.3f} s      RMSE = {_rmse(lap_err):6.3f} s")
@@ -182,17 +219,105 @@ def fastf1_run(year: int, era: str = "auto", step: float = 2.0, only=None):
 
 
 # ---------------------------------------------------------------------------
+# optimize: search CdA/ClA per track against real telemetry
+# ---------------------------------------------------------------------------
+
+def _trial_loss(segs, name, base_car, cda, cla, top_speed_kmh, step, real_lap, real_rs, lap_len):
+    car = dataclasses.replace(base_car, CdA=cda, ClA=cla, top_speed_kmh=top_speed_kmh)
+    sim = simulate_lap(segs, car, step=step, track_name=name)
+    sim_speed_kmh = sim["v_profile"] * 3.6
+    _, sim_rs = _resample_trace(sim["s"], sim_speed_kmh, lap_len)
+    trace_mae = float(np.mean(np.abs(sim_rs - real_rs)))
+    lap_err = sim["lap_time"] - real_lap
+    # trace_mae must dominate: with top_speed_kmh fixed to the real telemetry's
+    # max speed, CdA barely moves total lap time (the solver clamps to that cap
+    # regardless of drag), so a lap-time-only loss can't identify CdA -- it just
+    # finds *some* pair that integrates to the right time. Weighting the full
+    # speed trace at 0.3 recovers CdA/ClA within a few % on a synthetic
+    # ground-truth check; 0.05 did not (see validate_fastf1.py smoke test notes).
+    loss = abs(lap_err) + 0.3 * trace_mae
+    return loss, lap_err, trace_mae
+
+
+def _load_real_lap_live(name: str, year: int):
+    """Default loader: imports fastf1, enables the cache, loads one real lap."""
+    try:
+        import fastf1
+    except ImportError:
+        print("FastF1 not installed. Run:  pip install fastf1", file=sys.stderr)
+        sys.exit(1)
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    fastf1.Cache.enable_cache(CACHE_DIR)
+    return _load_real_lap(fastf1, name, year)
+
+
+def optimize_track(name: str, year: int, step: float = 3.0, loader=None):
+    """Grid-search CdA/ClA for `name` against a real FastF1 qualifying lap.
+
+    top_speed_kmh is set directly from the real telemetry's max speed (it's a
+    hard gearing cap in the solver, not something to fit). `loader(name, year)`
+    is swappable for offline testing (see the smoke-test note in the module
+    docstring) -- it defaults to `_load_real_lap_live`, which needs internet.
+    """
+    if name not in TRACKS:
+        print(f"{name}: unknown track")
+        return
+
+    segs = TRACKS[name]
+    lap_len = total_length(segs)
+    base_car = car_2025(name)
+
+    real = (loader or _load_real_lap_live)(name, year)
+    if real is None:
+        return
+
+    top_speed_kmh = real["real_vmax"] - 2.0  # small tow/draft margin
+    _, real_rs = _resample_real(real, lap_len)
+
+    base_cda, base_cla = base_car.CdA, base_car.ClA
+    best = None
+    center_cda, center_cla = base_cda, base_cla
+    for frac in (0.4, 0.14):  # coarse pass, then a refinement pass around the best point
+        cda_grid = np.linspace(center_cda * (1 - frac), center_cda * (1 + frac), 7)
+        cla_grid = np.linspace(center_cla * (1 - frac), center_cla * (1 + frac), 7)
+        for cda in cda_grid:
+            for cla in cla_grid:
+                loss, lap_err, trace_mae = _trial_loss(
+                    segs, name, base_car, cda, cla, top_speed_kmh, step,
+                    real["real_lap"], real_rs, lap_len)
+                if best is None or loss < best[0]:
+                    best = (loss, cda, cla, lap_err, trace_mae)
+        center_cda, center_cla = best[1], best[2]
+
+    _, best_cda, best_cla, best_lap_err, best_trace_mae = best
+    print(f"\n{name}  (real: {real['driver']}  {real['real_lap']:.3f}s  "
+          f"vmax {real['real_vmax']:.1f} km/h -- {year} Q)")
+    print(f"  current  CdA={base_cda:.3f}  ClA={base_cla:.3f}  top_speed_kmh={base_car.top_speed_kmh}")
+    print(f"  best     CdA={best_cda:.3f}  ClA={best_cla:.3f}  top_speed_kmh={top_speed_kmh:.1f}")
+    print(f"           -> lap-time delta {best_lap_err:+.3f}s   speed-trace MAE {best_trace_mae:.2f} km/h")
+    print(f'  paste into car_2025()\'s preset dict:')
+    print(f'    "{name}":'.ljust(22) +
+          f'dict(CdA={best_cda:.3f}, ClA={best_cla:.3f}, top_speed_kmh={top_speed_kmh:.1f}),'
+          f'  # FastF1-calibrated {year}')
+
+
+# ---------------------------------------------------------------------------
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--fastf1", action="store_true", help="use real FastF1 telemetry (needs internet)")
-    ap.add_argument("--year", type=int, default=2025, help="season to validate against (FastF1 mode)")
+    ap.add_argument("--optimize", action="store_true",
+                     help="search CdA/ClA per track against real telemetry (needs internet)")
+    ap.add_argument("--year", type=int, default=2025, help="season to validate against (FastF1/optimize mode)")
     ap.add_argument("--era", choices=["auto", "2025", "2026"], default="auto", help="which car model")
     ap.add_argument("--step", type=float, default=2.0, help="solver resolution (m)")
     ap.add_argument("--track", action="append", help="restrict to this track (repeatable)")
     args = ap.parse_args()
 
-    if args.fastf1:
+    if args.optimize:
+        for name in (args.track or list(NEEDS_CALIBRATION)):
+            optimize_track(name, args.year, step=max(args.step, 3.0))
+    elif args.fastf1:
         fastf1_run(args.year, era=args.era, step=args.step, only=args.track)
     else:
         dry_run(step=args.step)
