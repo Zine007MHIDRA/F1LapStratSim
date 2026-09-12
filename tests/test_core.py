@@ -156,12 +156,18 @@ class ExpandedCatalogueTests(unittest.TestCase):
                 self.assertTrue(np.all(np.isfinite(res["v_profile"])))
 
     def test_new_tracks_are_within_ballpark_of_benchmark_poles(self):
-        # "Ballpark" acceptance -- these six are not FastF1-calibrated yet.
+        # FastF1-calibrated 2025 aero (see validate_fastf1.py --optimize): five
+        # of six now land within a fraction of a second. Monaco keeps a wider
+        # allowance -- its ~1.0s residual survives even at the ClA search
+        # bound and looks like a track-geometry/tyre_mu gap, not an aero one
+        # (see the note in car_model.py's car_2025() Monaco preset).
+        tolerances = {"Monaco": 1.3}
         for name in self.NEW_TRACKS:
             ref = TRACK_POLE_BENCHMARKS[name]["y2025"]
             sim = simulate_lap(TRACKS[name], car_2025(name), step=4.0, track_name=name)["lap_time"]
+            tol = tolerances.get(name, 0.3)
             with self.subTest(track=name):
-                self.assertLess(abs(sim - ref), 4.0, f"{name}: sim {sim:.2f}s vs ref {ref:.2f}s")
+                self.assertLess(abs(sim - ref), tol, f"{name}: sim {sim:.2f}s vs ref {ref:.2f}s")
 
 
 class CircuitMetadataTests(unittest.TestCase):

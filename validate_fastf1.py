@@ -125,8 +125,9 @@ def dry_run(step: float = 2.0):
     print("-" * len(header))
     print(f"2025  lap-time MAE = {_mae(err25):.3f} s   RMSE = {_rmse(err25):.3f} s   (n={len(err25)})")
     print(f"2026  lap-time MAE = {_mae(err26):.3f} s   RMSE = {_rmse(err26):.3f} s   (n={len(err26)})")
-    print("\nNote: only Monza / Silverstone / Spa benchmarks are FastF1-verified; "
-          "the rest are approximate real poles (see TRACK_POLE_BENCHMARKS 'source').")
+    print("\nNote: all 9 circuits' 2025-era benchmarks are now FastF1-verified real poles "
+          "(see TRACK_POLE_BENCHMARKS 'source'). 2026-era benchmarks are still only set for "
+          "Monza/Silverstone/Spa -- the other six have y2026=None pending a future pass.")
 
 
 # ---------------------------------------------------------------------------
@@ -221,22 +222,47 @@ def fastf1_run(year: int, era: str = "auto", step: float = 2.0, only=None):
 # ---------------------------------------------------------------------------
 # optimize: search CdA/ClA per track against real telemetry
 # ---------------------------------------------------------------------------
+#
+# IMPORTANT FINDINGS from actually running this against real 2025 telemetry
+# for all 6 tracks (see PR/commit history for the raw output):
+#
+# 1. Our schematic segment lists (track_model.py) are a simplified,
+#    representative reconstruction of each circuit, not a corner-by-corner GPS
+#    trace -- turn order/spacing along the lap doesn't line up point-for-point
+#    with FastF1's real distance axis. That makes the point-wise speed-TRACE
+#    MAE unreliable as a fitting signal: it stayed at 50-70 km/h across EVERY
+#    track regardless of CdA/ClA (not just a Monaco quirk), so it's reported
+#    as a diagnostic only, never weighted into the loss.
+#
+# 2. CdA is only weakly identifiable from a qualifying lap at all: with
+#    top_speed_kmh fixed to the real telemetry's max speed, the solver clamps
+#    to that cap regardless of drag, so many different CdA values fit the real
+#    lap time equally well. A free 2D CdA/ClA search confirmed this by finding
+#    physically backwards orderings (e.g. Suzuka, a low-drag flowing track,
+#    landing a HIGHER CdA than Monaco, the highest-downforce/drag track on the
+#    calendar) -- an artifact of underdetermination, not a real result.
+#
+# So this optimizer holds CdA at its current hand-set ballpark (already
+# ordered sensibly relative to the other 8 tracks) and searches ONLY ClA --
+# the one aero scalar that meaningfully explains real cornering-speed
+# variance -- to match the real lap time, with top_speed_kmh read directly
+# from telemetry. If even the ClA bound can't close the gap, that's a sign the
+# residual lives in track geometry or tyre_mu, not aero, and the printed note
+# says so instead of silently reporting a forced-fit number.
 
-def _trial_loss(segs, name, base_car, cda, cla, top_speed_kmh, step, real_lap, real_rs, lap_len):
-    car = dataclasses.replace(base_car, CdA=cda, ClA=cla, top_speed_kmh=top_speed_kmh)
+_CLA_BOUNDS = (1.20, 4.60)   # a bit wider than the verified-track envelope (1.38-3.95)
+
+
+def _trial_loss(segs, name, base_car, cla, top_speed_kmh, step, real_lap, real_rs, lap_len):
+    car = dataclasses.replace(base_car, ClA=cla, top_speed_kmh=top_speed_kmh)
     sim = simulate_lap(segs, car, step=step, track_name=name)
     sim_speed_kmh = sim["v_profile"] * 3.6
     _, sim_rs = _resample_trace(sim["s"], sim_speed_kmh, lap_len)
     trace_mae = float(np.mean(np.abs(sim_rs - real_rs)))
     lap_err = sim["lap_time"] - real_lap
-    # trace_mae must dominate: with top_speed_kmh fixed to the real telemetry's
-    # max speed, CdA barely moves total lap time (the solver clamps to that cap
-    # regardless of drag), so a lap-time-only loss can't identify CdA -- it just
-    # finds *some* pair that integrates to the right time. Weighting the full
-    # speed trace at 0.3 recovers CdA/ClA within a few % on a synthetic
-    # ground-truth check; 0.05 did not (see validate_fastf1.py smoke test notes).
-    loss = abs(lap_err) + 0.3 * trace_mae
-    return loss, lap_err, trace_mae
+    # Lap time is the primary (and only reliable) fitting signal -- see note
+    # above. trace_mae is returned for reporting, not weighted into the loss.
+    return abs(lap_err), lap_err, trace_mae
 
 
 def _load_real_lap_live(name: str, year: int):
@@ -252,12 +278,11 @@ def _load_real_lap_live(name: str, year: int):
 
 
 def optimize_track(name: str, year: int, step: float = 3.0, loader=None):
-    """Grid-search CdA/ClA for `name` against a real FastF1 qualifying lap.
-
-    top_speed_kmh is set directly from the real telemetry's max speed (it's a
-    hard gearing cap in the solver, not something to fit). `loader(name, year)`
-    is swappable for offline testing (see the smoke-test note in the module
-    docstring) -- it defaults to `_load_real_lap_live`, which needs internet.
+    """Search ClA for `name` against a real FastF1 qualifying lap's lap time
+    (CdA held at its current ballpark -- see the note above on why it isn't
+    fit). top_speed_kmh is set directly from the real telemetry's max speed.
+    `loader(name, year)` is swappable for offline testing -- it defaults to
+    `_load_real_lap_live`, which needs internet.
     """
     if name not in TRACKS:
         print(f"{name}: unknown track")
@@ -274,30 +299,36 @@ def optimize_track(name: str, year: int, step: float = 3.0, loader=None):
     top_speed_kmh = real["real_vmax"] - 2.0  # small tow/draft margin
     _, real_rs = _resample_real(real, lap_len)
 
-    base_cda, base_cla = base_car.CdA, base_car.ClA
-    best = None
-    center_cda, center_cla = base_cda, base_cla
-    for frac in (0.4, 0.14):  # coarse pass, then a refinement pass around the best point
-        cda_grid = np.linspace(center_cda * (1 - frac), center_cda * (1 + frac), 7)
-        cla_grid = np.linspace(center_cla * (1 - frac), center_cla * (1 + frac), 7)
-        for cda in cda_grid:
-            for cla in cla_grid:
-                loss, lap_err, trace_mae = _trial_loss(
-                    segs, name, base_car, cda, cla, top_speed_kmh, step,
-                    real["real_lap"], real_rs, lap_len)
-                if best is None or loss < best[0]:
-                    best = (loss, cda, cla, lap_err, trace_mae)
-        center_cda, center_cla = best[1], best[2]
+    def clip(lo, hi, bounds):
+        return max(lo, bounds[0]), min(hi, bounds[1])
 
-    _, best_cda, best_cla, best_lap_err, best_trace_mae = best
+    base_cla = base_car.ClA
+    best = None
+    center_cla = base_cla
+    for frac in (0.5, 0.16, 0.05):  # coarse, refine, refine again
+        lo, hi = clip(center_cla * (1 - frac), center_cla * (1 + frac), _CLA_BOUNDS)
+        for cla in np.linspace(lo, hi, 15):
+            loss, lap_err, trace_mae = _trial_loss(
+                segs, name, base_car, cla, top_speed_kmh, step,
+                real["real_lap"], real_rs, lap_len)
+            if best is None or loss < best[0]:
+                best = (loss, cla, lap_err, trace_mae)
+        center_cla = best[1]
+
+    _, best_cla, best_lap_err, best_trace_mae = best
     print(f"\n{name}  (real: {real['driver']}  {real['real_lap']:.3f}s  "
           f"vmax {real['real_vmax']:.1f} km/h -- {year} Q)")
-    print(f"  current  CdA={base_cda:.3f}  ClA={base_cla:.3f}  top_speed_kmh={base_car.top_speed_kmh}")
-    print(f"  best     CdA={best_cda:.3f}  ClA={best_cla:.3f}  top_speed_kmh={top_speed_kmh:.1f}")
-    print(f"           -> lap-time delta {best_lap_err:+.3f}s   speed-trace MAE {best_trace_mae:.2f} km/h")
+    print(f"  current  CdA={base_car.CdA:.3f}  ClA={base_cla:.3f}  top_speed_kmh={base_car.top_speed_kmh}")
+    print(f"  best     CdA={base_car.CdA:.3f}  ClA={best_cla:.3f}  top_speed_kmh={top_speed_kmh:.1f}  (CdA unchanged)")
+    print(f"           -> lap-time delta {best_lap_err:+.3f}s   speed-trace MAE {best_trace_mae:.2f} km/h (diagnostic)")
+    if abs(best_lap_err) > 0.5:
+        print(f"  NOTE: {abs(best_lap_err):.2f}s residual even at the ClA bound -- aero alone can't")
+        print(f"        close this gap without leaving the physically-plausible envelope. Likely")
+        print(f"        needs a track-geometry or tyre_mu look (out of scope for this pass).")
+        print(f"        The value below is still the best aero-only fit.")
     print(f'  paste into car_2025()\'s preset dict:')
     print(f'    "{name}":'.ljust(22) +
-          f'dict(CdA={best_cda:.3f}, ClA={best_cla:.3f}, top_speed_kmh={top_speed_kmh:.1f}),'
+          f'dict(CdA={base_car.CdA:.3f}, ClA={best_cla:.3f}, top_speed_kmh={top_speed_kmh:.1f}),'
           f'  # FastF1-calibrated {year}')
 
 

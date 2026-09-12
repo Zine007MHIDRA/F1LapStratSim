@@ -216,10 +216,15 @@ SPA_SEGMENTS: List[Segment] = [
 # the right band for a modern F1 car (~2.5-4.5 g lateral); segment order,
 # handedness and DRS zones follow the real track.
 #
-# CALIBRATION STATUS: geometry + DRS + pit loss are representative; the
-# per-track aero presets in car_model.py for these six are BALLPARK ONLY
-# (TODO markers there). Run calibrate_with_fastf1.py / validate_fastf1.py
-# locally against the TRACK_POLE_BENCHMARKS targets to finish tuning.
+# CALIBRATION STATUS: aero (ClA/top_speed_kmh) for these six is now
+# FastF1-calibrated against real 2025 qualifying lap times (see
+# validate_fastf1.py --optimize and the note in car_model.py's car_2025()).
+# The corner geometry itself (radii/angle/order) is still representative
+# rather than a corner-by-corner GPS match -- that's a separate, larger
+# effort (full speed-trace fidelity is ~50-70 km/h MAE here vs ~5-10 km/h for
+# the corner-matched Monza/Silverstone/Spa). Monaco's ~1.0s lap-time residual
+# likely lives in this geometry (or tyre_mu), not aero -- see the note in
+# car_2025()'s Monaco preset.
 # ============================================================================
 
 # --- Circuit de Monaco (Monte Carlo) -- 3337 m, clockwise -------------------
@@ -465,12 +470,12 @@ TRACK_POLE_BENCHMARKS: Dict[str, dict] = {
     "Monza":             dict(y2025=78.79, y2026=82.30, top_speed_kmh=372, source="2025 Verstappen 1:18.792 (FastF1)"),
     "Silverstone":       dict(y2025=84.89, y2026=88.11, top_speed_kmh=305, source="2025 Verstappen / 2026 Antonelli (FastF1)"),
     "Spa-Francorchamps": dict(y2025=100.56, y2026=104.36, top_speed_kmh=345, source="2025/2026 Antonelli (FastF1)"),
-    "Monaco":            dict(y2025=69.95, y2026=None, top_speed_kmh=295, source="2025 Norris 1:09.954 (approx, unverified)"),
-    "Suzuka":            dict(y2025=86.98, y2026=None, top_speed_kmh=320, source="2025 Verstappen 1:26.983 (approx, unverified)"),
-    "Bahrain":           dict(y2025=89.84, y2026=None, top_speed_kmh=325, source="2025 Piastri 1:29.841 (approx, unverified)"),
-    "Red Bull Ring":     dict(y2025=63.97, y2026=None, top_speed_kmh=320, source="2025 Norris 1:03.971 (approx, unverified)"),
-    "Interlagos":        dict(y2025=70.70, y2026=None, top_speed_kmh=320, source="dry ref ~2023 Verstappen 1:10.727 (approx, unverified)"),
-    "COTA":              dict(y2025=92.14, y2026=None, top_speed_kmh=330, source="2025 Verstappen 1:32.143 (approx, unverified)"),
+    "Monaco":            dict(y2025=69.954, y2026=None, top_speed_kmh=289, source="2025 Q Norris 1:09.954 (FastF1)"),
+    "Suzuka":            dict(y2025=86.983, y2026=None, top_speed_kmh=325, source="2025 Q Verstappen 1:26.983 (FastF1)"),
+    "Bahrain":           dict(y2025=89.841, y2026=None, top_speed_kmh=315, source="2025 Q Piastri 1:29.841 (FastF1)"),
+    "Red Bull Ring":     dict(y2025=63.971, y2026=None, top_speed_kmh=324, source="2025 Q Norris 1:03.971 (FastF1)"),
+    "Interlagos":        dict(y2025=69.511, y2026=None, top_speed_kmh=336, source="2025 Q Norris 1:09.511 (FastF1)"),
+    "COTA":              dict(y2025=92.510, y2026=None, top_speed_kmh=324, source="2025 Q Verstappen 1:32.510 (FastF1)"),
 }
 
 # Sector split points as fraction-of-lap-distance (S1 end, S2 end). Real F1

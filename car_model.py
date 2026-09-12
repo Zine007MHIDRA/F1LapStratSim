@@ -221,19 +221,24 @@ def car_2025(track_name: str = "Monza", trim: str = "qualifying") -> CarParams:
     # Kemmel Straight might suggest because that straight is significantly
     # uphill (not modeled), so its cap partly stands in for that.
     #
-    # CALIBRATION STATUS: Monza / Silverstone / Spa are FastF1-tuned (~0.1s).
-    # The other six are BALLPARK ONLY -- TODO: tune CdA / ClA / top_speed_kmh
-    # against TRACK_POLE_BENCHMARKS with validate_fastf1.py locally.
+    # CALIBRATION STATUS: all 9 circuits are now FastF1-tuned against real
+    # 2025 qualifying telemetry (see validate_fastf1.py --optimize). CdA is
+    # held at its hand-set value in that search -- it's only weakly
+    # identifiable from lap time once top_speed_kmh pins the gearing cap, so
+    # only ClA and top_speed_kmh come from the fit. Monaco's fit still runs
+    # ~1.0s slower than real pole even at the top of the ClA search envelope;
+    # that residual looks like a track-geometry/tyre_mu gap, not an aero one,
+    # and is a known follow-up (see tests/test_core.py::ExpandedCatalogueTests).
     presets = {
         "Monza":             dict(CdA=0.80, ClA=3.20, top_speed_kmh=372.0),
         "Silverstone":       dict(CdA=0.65, ClA=2.65, top_speed_kmh=348.0),
         "Spa-Francorchamps": dict(CdA=0.55, ClA=1.38, top_speed_kmh=345.0),
-        "Monaco":            dict(CdA=1.05, ClA=3.95, top_speed_kmh=295.0),   # TODO calibrate
-        "Suzuka":            dict(CdA=0.78, ClA=3.05, top_speed_kmh=322.0),   # TODO calibrate
-        "Bahrain":           dict(CdA=0.70, ClA=3.05, top_speed_kmh=330.0),   # TODO calibrate
-        "Red Bull Ring":     dict(CdA=0.60, ClA=2.35, top_speed_kmh=330.0),   # TODO calibrate
-        "Interlagos":        dict(CdA=0.80, ClA=2.95, top_speed_kmh=320.0),   # TODO calibrate
-        "COTA":              dict(CdA=0.82, ClA=3.10, top_speed_kmh=330.0),   # TODO calibrate
+        "Monaco":            dict(CdA=1.05, ClA=4.60, top_speed_kmh=287.0),  # FastF1-calibrated 2025 (Norris pole); ~1.0s residual, see note above
+        "Suzuka":            dict(CdA=0.78, ClA=2.83, top_speed_kmh=323.0),  # FastF1-calibrated 2025 (Verstappen pole)
+        "Bahrain":           dict(CdA=0.70, ClA=4.01, top_speed_kmh=313.0),  # FastF1-calibrated 2025 (Piastri pole)
+        "Red Bull Ring":     dict(CdA=0.60, ClA=1.95, top_speed_kmh=322.0),  # FastF1-calibrated 2025 (Norris pole)
+        "Interlagos":        dict(CdA=0.80, ClA=3.77, top_speed_kmh=334.0),  # FastF1-calibrated 2025 (Norris pole)
+        "COTA":              dict(CdA=0.82, ClA=3.59, top_speed_kmh=322.0),  # FastF1-calibrated 2025 (Verstappen pole)
     }
     aero = presets.get(track_name, presets["Monza"])
     env = track_environment(track_name)
