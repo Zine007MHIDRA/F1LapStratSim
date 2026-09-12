@@ -306,17 +306,15 @@ elif view == "SIMULATOR":
         or st.session_state.get("last_lap_car") != car_label
     )
     if run_lap or "last_lap_result" not in st.session_state or track_or_car_changed:
-        with st.status(f"INITIALISING RACE MODEL · {track_name.upper()}", expanded=True) as status:
-            st.write("Reconstructing circuit geometry")
-            st.write("Solving forward–backward speed profile")
-            result = simulate_lap(TRACK, car, step=step_res, track_name=track_name)
-            st.write("Integrating ERS energy budget & tyre load")
-            st.write("Deriving sector splits, G-forces and speed traps")
-            st.session_state["last_lap_result"] = result
-            st.session_state["last_lap_track"] = track_name
-            st.session_state["last_lap_car"] = car_label
-            status.update(label=f"RACE MODEL COMPLETE · {theme.format_time_local(result['lap_time'])}",
-                          state="complete", expanded=False)
+        skeleton = st.empty()
+        with skeleton.container():
+            theme.render_skeleton_kpi_grid(6)
+            theme.render_skeleton_chart(560)
+        result = simulate_lap(TRACK, car, step=step_res, track_name=track_name)
+        st.session_state["last_lap_result"] = result
+        st.session_state["last_lap_track"] = track_name
+        st.session_state["last_lap_car"] = car_label
+        skeleton.empty()
     else:
         result = st.session_state.get("last_lap_result")
 
@@ -502,9 +500,12 @@ elif view == "CIRCUITS":
                   f"Apex / entry / exit speeds from the current machine's qualifying lap at {current_track_name}.")
     ck = f"{current_track_name}|{car_label}"
     if st.session_state.get("_circ_key") != ck:
-        with st.spinner(f"Solving a reference lap at {current_track_name}…"):
-            st.session_state["_circ_result"] = simulate_lap(CURR_TRACK, car, step=3.0, track_name=current_track_name)
-            st.session_state["_circ_key"] = ck
+        skeleton = st.empty()
+        with skeleton.container():
+            theme.render_skeleton_chart(240)
+        st.session_state["_circ_result"] = simulate_lap(CURR_TRACK, car, step=3.0, track_name=current_track_name)
+        st.session_state["_circ_key"] = ck
+        skeleton.empty()
     theme.render_corner_table(CURR_TRACK, st.session_state["_circ_result"])
 
 
@@ -556,12 +557,13 @@ elif view == "REGULATIONS":
         st.plotly_chart(radar, config=CFG, width="stretch")
 
     if st.button("⚡  RUN HEAD-TO-HEAD", key="compare_btn"):
-        with st.status(f"Simulating both packages at {track_name.upper()}", expanded=True) as status:
-            st.write("Solving 2025 fixed-wing lap")
-            res25 = simulate_lap(TRACK, c25, step=2.0, track_name=track_name)
-            st.write("Solving 2026 active-aero lap")
-            res26 = simulate_lap(TRACK, c26, step=2.0, track_name=track_name)
-            status.update(label="HEAD-TO-HEAD COMPLETE", state="complete", expanded=False)
+        skeleton = st.empty()
+        with skeleton.container():
+            theme.render_skeleton_kpi_grid(5)
+            theme.render_skeleton_chart(480)
+        res25 = simulate_lap(TRACK, c25, step=2.0, track_name=track_name)
+        res26 = simulate_lap(TRACK, c26, step=2.0, track_name=track_name)
+        skeleton.empty()
 
         t25, t26 = res25["lap_time"], res26["lap_time"]
         dt = t26 - t25
@@ -655,11 +657,13 @@ elif view == "STRATEGY":
             if stint_inputs[-1][1] <= 0:
                 st.error("Stint lengths exceed the race distance — reduce an earlier stint.")
             else:
-                with st.status(f"Simulating {total_laps} laps with pit stops", expanded=True) as status:
-                    st.write("Running lap-by-lap tyre degradation & fuel burn")
-                    res = simulate_race_strategy(TRACK, race_car, stint_inputs, total_laps,
-                                                 step=8.0, track_name=track_name)
-                    status.update(label="RACE SIMULATION COMPLETE", state="complete", expanded=False)
+                skeleton = st.empty()
+                with skeleton.container():
+                    theme.render_skeleton_kpi_grid(4)
+                    theme.render_skeleton_chart(420)
+                res = simulate_race_strategy(TRACK, race_car, stint_inputs, total_laps,
+                                             step=8.0, track_name=track_name)
+                skeleton.empty()
 
                 t_race = res["total_time"]
                 avg_lap = t_race / total_laps
@@ -725,25 +729,97 @@ elif view == "STRATEGY":
         st.caption("Brute-force search — the 'Fast' resolution is recommended for the hosted demo.")
 
         if st.button("🏁  EXECUTE OPTIMISER SEARCH", key="opt_run_btn"):
-            with st.status(f"Evaluating {n_plans} candidate strategies", expanded=True) as status:
-                st.write("Simulating every 1- and 2-stop compound permutation")
-                t0 = time.time()
-                results = find_best_strategy(TRACK, race_car, opt_laps, include_2stop=include_2stop,
-                                             step=float(opt_step), verbose=False, track_name=track_name)
-                calc_time = time.time() - t0
-                status.update(label=f"OPTIMISED IN {calc_time:.1f}s · {len(results)} STRATEGIES",
-                              state="complete", expanded=False)
+            skeleton = st.empty()
+            with skeleton.container():
+                theme.render_skeleton_tower(6)
+            t0 = time.time()
+            results = find_best_strategy(TRACK, race_car, opt_laps, include_2stop=include_2stop,
+                                         step=float(opt_step), verbose=False, track_name=track_name)
+            calc_time = time.time() - t0
+            skeleton.empty()
+            st.session_state["_opt_results"] = results
+            st.session_state["_opt_laps"] = opt_laps
+            st.session_state["_opt_calc_time"] = calc_time
 
-            if results:
-                best = results[0][0]
-                theme.render_timing_tower(results, best, top_n=10)
-                theme.section("Top 5 strategy timelines")
-                for rank, (t_strat, plan) in enumerate(results[:5]):
-                    st.markdown(f"**P{rank+1} · {theme.format_time_local(t_strat)}**  (+{t_strat - best:.2f}s)")
-                    theme.render_stint_timeline(plan, opt_laps,
-                                                delta_vs=(t_strat - best) if rank else None)
-            else:
-                st.warning("No valid strategies for these parameters — try more race laps.")
+        results = st.session_state.get("_opt_results")
+        if results:
+            res_laps = st.session_state.get("_opt_laps", opt_laps)
+            calc_time = st.session_state.get("_opt_calc_time")
+            best = results[0][0]
+            if calc_time is not None:
+                st.caption(f"Optimised in {calc_time:.1f}s · {len(results)} strategies evaluated.")
+            theme.render_timing_tower(results, best, top_n=10)
+            theme.section("Top 5 strategy timelines")
+            for rank, (t_strat, plan) in enumerate(results[:5]):
+                st.markdown(f"**P{rank+1} · {theme.format_time_local(t_strat)}**  (+{t_strat - best:.2f}s)")
+                theme.render_stint_timeline(plan, res_laps,
+                                            delta_vs=(t_strat - best) if rank else None)
+
+            if len(results) >= 2:
+                theme.section("Head-to-head comparison",
+                              "Pick any two of the top-10 strategies to compare stint plans and race pace lap-by-lap.")
+                top = results[:10]
+                labels = [
+                    f"P{i+1} · {' + '.join(f'{c[:1].upper()}{l}' for c, l in plan)} · {theme.format_time_local(t)}"
+                    for i, (t, plan) in enumerate(top)
+                ]
+                ca, cvs, cb = st.columns([1, 0.18, 1])
+                with ca:
+                    idx_a = st.selectbox("Strategy A", range(len(labels)), index=0,
+                                         format_func=lambda i: labels[i], key="cmp_a")
+                with cvs:
+                    theme.render_html('<div class="vs-badge">VS</div>')
+                with cb:
+                    default_b = 1 if len(labels) > 1 else 0
+                    idx_b = st.selectbox("Strategy B", range(len(labels)), index=default_b,
+                                         format_func=lambda i: labels[i], key="cmp_b")
+
+                if idx_a == idx_b:
+                    st.caption("Pick two different strategies to compare.")
+                else:
+                    t_a, plan_a = top[idx_a]
+                    t_b, plan_b = top[idx_b]
+                    delta = t_b - t_a
+                    theme.render_readout_row([
+                        (f"Strategy A · P{idx_a+1}", theme.format_time_local(t_a),
+                         " + ".join(f"{c.upper()} {l}L" for c, l in plan_a), C["cyan"]),
+                        (f"Strategy B · P{idx_b+1}", theme.format_time_local(t_b),
+                         " + ".join(f"{c.upper()} {l}L" for c, l in plan_b), C["purple"]),
+                        ("Delta (B − A)", f"{delta:+.2f}s", "A FASTER" if delta > 0 else "B FASTER",
+                         C["positive"] if delta < 0 else C["negative"]),
+                    ])
+                    theme.render_stint_timeline(plan_a, res_laps)
+                    theme.render_stint_timeline(plan_b, res_laps, delta_vs=delta)
+
+                    res_a = simulate_race_strategy(TRACK, race_car, plan_a, res_laps,
+                                                   step=8.0, track_name=track_name)
+                    res_b = simulate_race_strategy(TRACK, race_car, plan_b, res_laps,
+                                                   step=8.0, track_name=track_name)
+                    gap = np.cumsum(res_b["lap_times"]) - np.cumsum(res_a["lap_times"])
+                    laps_axis = np.arange(1, len(gap) + 1)
+
+                    gap_fig = go.Figure()
+                    gap_fig.add_hline(y=0, line=dict(color=C["text_dim"], width=1, dash="dot"))
+                    cursor = 0
+                    for stint_idx, (_, stint_laps) in enumerate(plan_a[:-1]):
+                        cursor += stint_laps
+                        gap_fig.add_vline(x=cursor + 0.5, line=dict(color=C["cyan"], width=1, dash="dash"))
+                    cursor = 0
+                    for stint_idx, (_, stint_laps) in enumerate(plan_b[:-1]):
+                        cursor += stint_laps
+                        gap_fig.add_vline(x=cursor + 0.5, line=dict(color=C["purple"], width=1, dash="dash"))
+                    for tr in theme.glow_scatter(laps_axis, gap, C["amber"], "Gap · B − A", width=2.6, fill=True):
+                        gap_fig.add_trace(tr)
+                    gap_fig.update_layout(**theme.themed_layout_kwargs(height=340, unified_hover=False))
+                    gap_fig.update_layout(
+                        title="RACE GAP EVOLUTION · POSITIVE = STRATEGY B BEHIND",
+                        xaxis_title="RACE LAP", yaxis_title="GAP · SECONDS",
+                    )
+                    theme.style_axes(gap_fig, spikes=False)
+                    st.plotly_chart(gap_fig, config=CFG, width="stretch")
+                    st.caption("Dashed lines mark pit stops (cyan = Strategy A, purple = Strategy B).")
+        elif "_opt_results" in st.session_state:
+            st.warning("No valid strategies for these parameters — try more race laps.")
 
 
 # ===========================================================================
@@ -758,15 +834,15 @@ elif view == "TRACK MAP":
                         ["High-Definition Speed Heatmap", "Animated Lap Replay"], horizontal=True)
 
     if st.button("🗺  GENERATE CIRCUIT MAP", key="map_run_btn"):
-        with st.status(f"Reconstructing {track_name.upper()} geometry & speed contour", expanded=True) as status:
-            st.write("Walking the segment model into 2D coordinates")
-            map_data = build_lap_map_data(TRACK, car, step=5.0)
-            st.write("Mapping simulated speed onto the racing line")
-            if map_view == "High-Definition Speed Heatmap":
-                fig_map = build_static_map_figure(map_data, title=f"{track_name.upper()} · SPEED HEATMAP")
-            else:
-                fig_map = build_animated_map_figure(map_data, title=f"{track_name.upper()} · LAP REPLAY")
-            status.update(label="CIRCUIT MAP READY", state="complete", expanded=False)
+        skeleton = st.empty()
+        with skeleton.container():
+            theme.render_skeleton_chart(560)
+        map_data = build_lap_map_data(TRACK, car, step=5.0)
+        if map_view == "High-Definition Speed Heatmap":
+            fig_map = build_static_map_figure(map_data, title=f"{track_name.upper()} · SPEED HEATMAP")
+        else:
+            fig_map = build_animated_map_figure(map_data, title=f"{track_name.upper()} · LAP REPLAY")
+        skeleton.empty()
         st.plotly_chart(fig_map, config=CFG, width="stretch")
     else:
         st.info("Generate the map to render the circuit's speed-coloured GPS trace.")

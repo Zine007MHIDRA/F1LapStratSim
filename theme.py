@@ -1104,12 +1104,35 @@ _CINEMATIC_CSS = """
   }
 }
 @media (max-width: 680px) {
-  .hero { min-height:70vh; margin-bottom:1.8rem; }
+  .hero { min-height:54vh; margin-bottom:1.8rem; }
   .hero__stats { gap:1.4rem; }
   .tower__head, .tower__row { grid-template-columns:40px 1fr 70px; }
   .tower__head span:nth-child(3), .tower__row .tower__plan { display:none; }
   .ct-facts { gap:1.2rem; }
   .tele-grid { grid-template-columns:repeat(2,1fr) !important; }
+  /* nav swipe-scroll is invisible (hidden scrollbar) below desktop widths --
+     hint that more items exist off-screen with a fading right edge. */
+  .st-key-nav_bar::after {
+    content:""; position:absolute; top:0; right:0; bottom:1px; width:28px;
+    background:linear-gradient(90deg, transparent, rgba(11,11,13,0.95));
+    pointer-events:none; z-index:2;
+  }
+}
+@media (max-width: 480px) {
+  .hero { min-height:48vh; margin-bottom:1.3rem; }
+  .hero__content { padding:0 1.1rem; }
+  .hero__eyebrow { padding:4px 9px; font-size:0.6rem; letter-spacing:0.2em; margin-bottom:1rem; }
+  .hero__stats { gap:1.1rem; margin-top:1.4rem; }
+  .hero__stat .n { font-size:1.5rem; }
+  .st-key-nav_bar label[data-testid="stRadioOption"] { padding:0.7rem 0.85rem 0.75rem !important; }
+  .st-key-nav_bar label p { font-size:0.7rem !important; letter-spacing:0.09em !important; }
+  .tele-card { padding:0.75rem 0.85rem 0.8rem; }
+  .tele-label { font-size:0.62rem; }
+  .tower__head, .tower__row { grid-template-columns:32px 1fr 60px; padding:0 10px; }
+  .ct-hero { min-height:230px; }
+  .ct-hero h2 { font-size:1.9rem; }
+  .ct-facts { gap:0.9rem; }
+  .reg-row { grid-template-columns: 1fr 40px 46px 40px 1fr; gap:6px; }
 }
 
 /* ================= NAV -> HERO SEAM ================= */
@@ -1148,6 +1171,49 @@ _CINEMATIC_CSS = """
 .tele-sub { color:var(--text-dim); }
 .tele-trend { border-radius:2px; }
 @media (max-width: 680px) { .tele-value { font-size:1.4rem; } }
+
+/* ================= HEAD-TO-HEAD COMPARE ================= */
+.vs-badge {
+  display:flex; align-items:center; justify-content:center;
+  width:34px; height:34px; margin:1.8rem auto 0; border-radius:50%;
+  background:var(--race-red); color:#fff; font-family:var(--font-display);
+  font-weight:800; font-size:0.72rem; letter-spacing:0.03em;
+  box-shadow:0 0 14px var(--race-red-glow);
+}
+"""
+
+# ============================================================================
+# 2c · SKELETON LOADING STATES
+# ============================================================================
+# Shimmering placeholders shaped like the real content they precede (a KPI
+# grid, a chart block, or a timing tower), so a run reads as "already
+# loading the right thing" instead of a blank spinner + text. Injected as its
+# own minified <style> block (see inject_css()) after the cinematic layer so
+# it can reuse --s2/--s3/--line-solid/--panel-solid from that :root override.
+
+_SKELETON_CSS = """
+@keyframes skel-shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+.skel {
+  border-radius:4px;
+  background:linear-gradient(100deg, var(--s2) 25%, var(--s3) 45%, var(--s2) 65%);
+  background-size:250% 100%; animation:skel-shimmer 1.6s ease-in-out infinite;
+}
+.skel-grid {
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(178px, 1fr)); gap:1px;
+  background:var(--line-solid); border:1px solid var(--line-solid);
+  border-radius:4px; overflow:hidden; margin:0.4rem 0 1.4rem;
+}
+.skel-card { background:var(--panel-solid); padding:0.9rem 1.05rem 0.95rem; display:flex; flex-direction:column; gap:10px; }
+.skel-card .skel.label { width:55%; height:8px; }
+.skel-card .skel.value { width:78%; height:22px; }
+.skel-card .skel.sub { width:42%; height:7px; }
+.skel-chart { width:100%; }
+.skel-tower-row {
+  display:grid; grid-template-columns:56px 1fr 130px 92px 78px; align-items:center;
+  gap:10px; padding:0 14px; height:46px; border-bottom:1px solid var(--line);
+}
+.skel-tower-row:last-child { border-bottom:none; }
+@media (max-width:680px) { .skel-tower-row { grid-template-columns:40px 1fr 70px; } }
 """
 
 
@@ -1166,7 +1232,7 @@ def inject_css():
     """Inject the console stylesheet as separate, minified <style> blocks; the
     cinematic layer is injected last so its :root overrides and !important
     rules win over the base console styles."""
-    for block in (_FONT_IMPORT + _ROOT_VARS, _STATIC_CSS, _CINEMATIC_CSS):
+    for block in (_FONT_IMPORT + _ROOT_VARS, _STATIC_CSS, _CINEMATIC_CSS, _SKELETON_CSS):
         st.markdown("<style>" + _prep_css(block) + "</style>", unsafe_allow_html=True)
 
 
@@ -1321,6 +1387,39 @@ def render_readout_row(items):
             f'</div>'
         )
     render_html(f'<div class="tele-grid">{"".join(cards)}</div>')
+
+
+def render_skeleton_kpi_grid(n: int = 6):
+    """Shimmering placeholder matching render_readout_row's `.tele-grid`
+    shape -- same grid, same card padding, so nothing reflows when the real
+    KPI cards replace it."""
+    card = (
+        '<div class="skel-card">'
+        '<div class="skel label"></div>'
+        '<div class="skel value"></div>'
+        '<div class="skel sub"></div>'
+        '</div>'
+    )
+    render_html(f'<div class="skel-grid">{card * n}</div>')
+
+
+def render_skeleton_chart(height: int = 360):
+    """Shimmering placeholder for a chart- or table-shaped block."""
+    render_html(f'<div class="skel skel-chart" style="height:{height}px;"></div>')
+
+
+def render_skeleton_tower(rows: int = 6):
+    """Shimmering placeholder matching render_timing_tower's `.tower` shape."""
+    row = (
+        '<div class="skel-tower-row">'
+        '<div class="skel" style="height:20px;width:30px;"></div>'
+        '<div class="skel" style="height:14px;width:70%;"></div>'
+        '<div class="skel" style="height:14px;width:60px;justify-self:end;"></div>'
+        '<div class="skel" style="height:14px;width:50px;justify-self:end;"></div>'
+        '<div class="skel" style="height:14px;width:40px;justify-self:center;"></div>'
+        '</div>'
+    )
+    render_html(f'<div class="tower">{row * rows}</div>')
 
 
 # ============================================================================
