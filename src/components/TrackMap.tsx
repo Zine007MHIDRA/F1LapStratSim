@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { CircuitData } from '../engine/types';
+import { Play, Pause, RotateCcw, FastForward } from 'lucide-react';
 
 interface TrackMapProps {
   circuit: CircuitData;
@@ -12,21 +13,65 @@ interface TrackMapProps {
 
 export default function TrackMap({
   circuit,
-  activeDistanceM,
+  activeDistanceM = 0,
   onHoverDistance,
   className = '',
 }: TrackMapProps) {
   const telemetry = circuit.telemetry;
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(2); // 2x default for smooth preview
+  const animRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number>(0);
+
+  const lapLength = circuit.lapLengthM || 5000;
+
+  // Real-time animation loop
+  useEffect(() => {
+    if (!isPlaying) {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      return;
+    }
+
+    const animate = (time: number) => {
+      if (!lastTimeRef.current) lastTimeRef.current = time;
+      const dt = (time - lastTimeRef.current) / 1000.0;
+      lastTimeRef.current = time;
+
+      // Approximate car velocity at current position (~240 km/h = 66 m/s)
+      const currentSpeedMps = 70.0;
+      const deltaM = currentSpeedMps * dt * playbackSpeed;
+      const nextDist = ((activeDistanceM ?? 0) + deltaM) % lapLength;
+
+      if (onHoverDistance) {
+        onHoverDistance(nextDist);
+      }
+
+      animRef.current = requestAnimationFrame(animate);
+    };
+
+    animRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      lastTimeRef.current = 0;
+    };
+  }, [isPlaying, activeDistanceM, lapLength, playbackSpeed, onHoverDistance]);
 
   // Compute bounding box and normalizations for SVG projection
-  const { pathData, segmentsPath, carCoord, viewBox } = useMemo(() => {
+  const { pathData, segmentsPath, carCoord, currentMetrics, viewBox } = useMemo(() => {
     const xs = telemetry.x;
     const ys = telemetry.y;
     const dists = telemetry.distance;
     const speeds = telemetry.speed;
 
     if (!xs || xs.length === 0) {
-      return { pathData: '', segmentsPath: [], carCoord: null, viewBox: '0 0 1000 1000' };
+      return {
+        pathData: '',
+        segmentsPath: [],
+        carCoord: null,
+        currentMetrics: { speed: 0, gear: 1, throttle: 0, brake: 0 },
+        viewBox: '0 0 1000 1000',
+      };
     }
 
     let minX = Infinity;
@@ -53,7 +98,6 @@ export default function TrackMap({
 
     for (let i = 0; i < xs.length; i++) {
       const nextIdx = (i + 1) % xs.length;
-      // Invert Y for standard screen coordinates
       const x1 = xs[i] - offsetX;
       const y1 = maxY + pad - ys[i];
       const x2 = xs[nextIdx] - offsetX;
@@ -66,7 +110,6 @@ export default function TrackMap({
       }
 
       const spd = speeds[i] || 200;
-      // Speed coloring: <130 red, 130-240 yellow/orange, >240 cyan
       let color = '#00F0FF';
       if (spd < 130) {
         color = '#E10600';
@@ -85,9 +128,11 @@ export default function TrackMap({
     }
     fullD += ' Z';
 
-    // Locate active vehicle position if distance provided
+    // Locate active vehicle position
     let car: { x: number; y: number; speed: number } | null = null;
-    if (activeDistanceM !== undefined && dists.length > 0) {
+    let metrics = { speed: 0, gear: 1, throttle: 0, brake: 0 };
+
+    if (dists && dists.length > 0) {
       let closestIdx = 0;
       let minDiff = Infinity;
       for (let i = 0; i < dists.length; i++) {
@@ -102,12 +147,19 @@ export default function TrackMap({
         y: maxY + pad - ys[closestIdx],
         speed: speeds[closestIdx] || 0,
       };
+      metrics = {
+        speed: Math.round(speeds[closestIdx] || 0),
+        gear: telemetry.gear[closestIdx] || 1,
+        throttle: telemetry.throttle ? Math.round(telemetry.throttle[closestIdx] || 0) : 0,
+        brake: telemetry.brake ? Math.round(telemetry.brake[closestIdx] || 0) : 0,
+      };
     }
 
     return {
       pathData: fullD,
       segmentsPath: segs,
       carCoord: car,
+      currentMetrics: metrics,
       viewBox: `0 0 ${width.toFixed(1)} ${height.toFixed(1)}`,
     };
   }, [telemetry, activeDistanceM]);
@@ -115,39 +167,102 @@ export default function TrackMap({
   return (
     <div className={`relative bg-[#0E131F] border border-[#212A3E] rounded-lg p-4 flex flex-col ${className}`}>
       {/* Header bar */}
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-wrap items-center justify-between mb-2 gap-2">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold tracking-wider text-[#94A3B8] uppercase">
             GPS RACING LINE ({circuit.name})
           </span>
-          <span className="text-[10px] mono px-2 py-0.5 rounded bg-[#141A29] text-[#64748B] border border-[#212A3E]">
-            {circuit.lapLengthM}m
+          <span className="text-[10px] mono px-2 py-0.5 rounded bg-[#141A29] text-[#00F0FF] border border-[#212A3E]">
+            {Math.round(activeDistanceM)}m / {lapLength}m
           </span>
         </div>
-        <div className="flex items-center gap-3 text-[11px] mono">
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#E10600]"></span>
-            <span className="text-[#94A3B8]">&lt;130 km/h</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#FFB703]"></span>
-            <span className="text-[#94A3B8]">130-220</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#00F0FF]"></span>
-            <span className="text-[#94A3B8]">&gt;280 km/h</span>
-          </div>
+
+        {/* Playback Controls */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsPlaying(!isPlaying)}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold transition-all ${
+              isPlaying
+                ? 'bg-[#E10600] text-white shadow-sm'
+                : 'bg-[#141A29] text-[#00F0FF] border border-[#212A3E] hover:bg-[#1E2638]'
+            }`}
+          >
+            {isPlaying ? (
+              <>
+                <Pause className="w-3 h-3" /> PAUSE
+              </>
+            ) : (
+              <>
+                <Play className="w-3 h-3" /> REPLAY
+              </>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onHoverDistance && onHoverDistance(0)}
+            className="p-1 rounded bg-[#141A29] text-[#94A3B8] hover:text-white border border-[#212A3E]"
+            title="Reset to Start/Finish line"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Speed Multiplier Pill */}
+          <button
+            type="button"
+            onClick={() => setPlaybackSpeed(playbackSpeed === 1 ? 2 : playbackSpeed === 2 ? 4 : 1)}
+            className="px-2 py-1 rounded text-[10px] mono bg-[#141A29] text-[#FFB703] border border-[#212A3E] hover:border-[#334155] font-bold"
+          >
+            {playbackSpeed}x
+          </button>
         </div>
       </div>
 
-      {/* SVG Canvas */}
+      {/* SVG Canvas with Live HUD Overlay */}
       <div className="relative w-full aspect-4/3 max-h-[460px] flex items-center justify-center overflow-hidden">
+        {/* Live Cockpit HUD Overlay */}
+        <div className="absolute top-3 left-3 bg-[#080A0F]/85 border border-[#212A3E] rounded p-2.5 z-10 mono text-xs pointer-events-none backdrop-blur-xs flex items-center gap-4">
+          <div>
+            <span className="text-[#64748B] text-[9px] block">SPEED</span>
+            <span className="text-white font-bold text-base leading-tight">
+              {currentMetrics.speed} <span className="text-[10px] text-[#94A3B8]">km/h</span>
+            </span>
+          </div>
+          <div className="border-l border-[#212A3E] pl-3">
+            <span className="text-[#64748B] text-[9px] block">GEAR</span>
+            <span className="text-[#00F0FF] font-bold text-base leading-tight">
+              G{currentMetrics.gear}
+            </span>
+          </div>
+          <div className="border-l border-[#212A3E] pl-3 flex items-center gap-2">
+            <div className="text-center">
+              <span className="text-[9px] text-[#64748B] block">THR</span>
+              <div className="w-3 h-8 bg-[#141A29] rounded overflow-hidden flex flex-col justify-end border border-[#212A3E]">
+                <div
+                  className="w-full bg-[#00E676] transition-all"
+                  style={{ height: `${currentMetrics.throttle}%` }}
+                />
+              </div>
+            </div>
+            <div className="text-center">
+              <span className="text-[9px] text-[#64748B] block">BRK</span>
+              <div className="w-3 h-8 bg-[#141A29] rounded overflow-hidden flex flex-col justify-end border border-[#212A3E]">
+                <div
+                  className="w-full bg-[#E10600] transition-all"
+                  style={{ height: `${currentMetrics.brake}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <svg
           viewBox={viewBox}
           className="w-full h-full cursor-crosshair transition-transform"
           preserveAspectRatio="xMidYMid meet"
         >
-          {/* Background track silhouette / glow */}
+          {/* Background track silhouette */}
           <path
             d={pathData}
             fill="none"
@@ -182,32 +297,9 @@ export default function TrackMap({
           {/* Active vehicle indicator */}
           {carCoord && (
             <g transform={`translate(${carCoord.x}, ${carCoord.y})`}>
-              <circle r="12" fill="#00F0FF" fillOpacity="0.25" />
+              <circle r="14" fill="#00F0FF" fillOpacity="0.25" />
               <circle r="6" fill="#00F0FF" stroke="#FFFFFF" strokeWidth="2" />
-              <text
-                x="14"
-                y="4"
-                fill="#FFFFFF"
-                fontSize="24"
-                fontFamily="monospace"
-                fontWeight="bold"
-                className="select-none"
-              >
-                {Math.round(carCoord.speed)} km/h
-              </text>
             </g>
-          )}
-
-          {/* Start/Finish line indicator (point 0) */}
-          {segmentsPath.length > 0 && (
-            <circle
-              cx={telemetry.x[0] ? (telemetry.x[0] - parseFloat(viewBox.split(' ')[0])) : 0}
-              cy={telemetry.y[0] ? (parseFloat(viewBox.split(' ')[3]) - telemetry.y[0]) : 0}
-              r="4"
-              fill="#FFFFFF"
-              stroke="#E10600"
-              strokeWidth="2"
-            />
           )}
         </svg>
       </div>

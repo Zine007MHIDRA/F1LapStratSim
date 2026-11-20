@@ -98,6 +98,11 @@ export interface CarParams {
   tyreMu: number;
   frictionEllipseP: number;
   maxDecelG: number;
+  // Dynamic Load Transfer Geometry
+  wheelbaseM?: number; // meters (e.g. 3.60m)
+  cgHeightM?: number; // center of gravity height (e.g. 0.31m)
+  frontWeightFraction?: number; // static weight split (e.g. 0.455)
+  brakeBias?: number; // front braking force distribution (e.g. 0.56)
 }
 
 export interface ErsState {
@@ -127,6 +132,10 @@ export interface LapSimulationResult {
   speedTrapKmh: number;
   straightSpeeds: Record<string, number>;
   ers: ErsState;
+  elevationM?: number[];
+  gradePct?: number[];
+  frontNormalLoadN?: number[];
+  rearNormalLoadN?: number[];
   valid: boolean;
   warnings: string[];
 }
@@ -149,4 +158,6 @@ export interface StrategyPlanResult {
   deltaVsBest: number;
   plan: [CompoundName, number][];
   stopCount: number;
+  pitStopLaps?: number[];
+  scTimeSavings?: number;
 }

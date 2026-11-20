@@ -17,6 +17,18 @@ export interface StintTuple {
   laps: number;
 }
 
+export const TRACK_SC_PROBABILITY: Record<string, { scProb: number; vscProb: number }> = {
+  "monza": { scProb: 0.30, vscProb: 0.35 },
+  "silverstone": { scProb: 0.45, vscProb: 0.40 },
+  "spa": { scProb: 0.55, vscProb: 0.50 },
+  "monaco": { scProb: 0.80, vscProb: 0.45 },
+  "suzuka": { scProb: 0.40, vscProb: 0.45 },
+  "bahrain": { scProb: 0.35, vscProb: 0.40 },
+  "red_bull_ring": { scProb: 0.40, vscProb: 0.50 },
+  "interlagos": { scProb: 0.60, vscProb: 0.50 },
+  "cota": { scProb: 0.45, vscProb: 0.40 },
+};
+
 /**
  * Generates all valid 1-stop strategy plans covering totalLaps.
  * Enforces the FIA rule: must use at least two distinct dry compounds.
@@ -83,6 +95,8 @@ export function simulateRaceStrategy(
     pitLossS?: number;
     initialFuelKg?: number;
     step?: number;
+    scLap?: number;
+    dirtyAirLaps?: number;
   } = {},
 ): RaceSimulationResult {
   const totalLaps = stintPlan.reduce((acc, s) => acc + s.laps, 0);
@@ -99,12 +113,14 @@ export function simulateRaceStrategy(
   const stintLapsHistory: number[] = [];
   let totalTime = 0.0;
   let currentFuel = initialFuel;
+  let currentRaceLap = 0;
 
   for (let stintIdx = 0; stintIdx < stintPlan.length; stintIdx++) {
     const stint = stintPlan[stintIdx];
     const compound = COMPOUNDS[stint.compound];
 
     for (let lapOnTyre = 1; lapOnTyre <= stint.laps; lapOnTyre++) {
+      currentRaceLap++;
       const gMult = gripMultiplier(compound, lapOnTyre, thermalLoad);
       const lapRes = simulateLap(circuit, baseCar, {
         step: simStep,
@@ -113,17 +129,28 @@ export function simulateRaceStrategy(
         energySolve: false, // In races, continuous balanced deployment is used
       });
 
-      allLapTimes.push(lapRes.lapTime);
+      let lapT = lapRes.lapTime;
+      // Dirty air penalty: if in traffic within dirtyAirLaps
+      if (options.dirtyAirLaps && currentRaceLap <= options.dirtyAirLaps) {
+        lapT += 1.15; // +1.15s/lap dirty air turbulence penalty
+      }
+
+      allLapTimes.push(lapT);
       fuelMassHistory.push(currentFuel);
       stintLapsHistory.push(lapOnTyre);
-      totalTime += lapRes.lapTime;
+      totalTime += lapT;
 
       currentFuel = Math.max(2.0, currentFuel - fuelPerLap);
     }
 
     // Add pit stop loss after each stint except the last
     if (stintIdx < stintPlan.length - 1) {
-      totalTime += pitLoss;
+      let effectivePitLoss = pitLoss;
+      // If Safety Car is deployed near this pit stop, pit loss is discounted by ~45%
+      if (options.scLap && Math.abs(currentRaceLap - options.scLap) <= 2) {
+        effectivePitLoss *= 0.55;
+      }
+      totalTime += effectivePitLoss;
     }
   }
 
@@ -144,29 +171,58 @@ export function optimizeStrategy(
   totalLaps: number,
   include2Stop: boolean = true,
   maxCandidates: number = 40,
+  options: {
+    scLap?: number;
+    dirtyAirLaps?: number;
+  } = {},
 ): StrategyPlanResult[] {
   const plans1 = generate1StopPlans(totalLaps, 8, 3);
   const plans2 = include2Stop ? generate2StopPlans(totalLaps, 7, 5) : [];
   const candidatePlans = [...plans1, ...plans2];
 
-  const results: { totalTime: number; plan: StintTuple[]; stopCount: number }[] = [];
+  const results: {
+    totalTime: number;
+    plan: StintTuple[];
+    stopCount: number;
+    pitStopLaps: number[];
+  }[] = [];
 
   for (const plan of candidatePlans) {
-    const res = simulateRaceStrategy(circuit, plan, { step: 18.0 });
+    const res = simulateRaceStrategy(circuit, plan, {
+      step: 18.0,
+      scLap: options.scLap,
+      dirtyAirLaps: options.dirtyAirLaps,
+    });
+
+    const pitStopLaps: number[] = [];
+    let cumLap = 0;
+    for (let i = 0; i < plan.length - 1; i++) {
+      cumLap += plan[i].laps;
+      pitStopLaps.push(cumLap);
+    }
+
     results.push({
       totalTime: res.totalTime,
       plan,
       stopCount: plan.length - 1,
+      pitStopLaps,
     });
   }
 
   results.sort((a, b) => a.totalTime - b.totalTime);
   const bestTime = results[0]?.totalTime ?? 0;
+  const basePitLoss = circuit.pitLossS ?? 23.0;
 
-  return results.slice(0, maxCandidates).map((r) => ({
-    totalTime: r.totalTime,
-    deltaVsBest: r.totalTime - bestTime,
-    plan: r.plan.map((s) => [s.compound, s.laps] as [CompoundName, number]),
-    stopCount: r.stopCount,
-  }));
+  return results.slice(0, maxCandidates).map((r) => {
+    // Calculate potential SC time savings if a safety car occurred during the pit window
+    const scSavings = (basePitLoss * 0.45) * r.stopCount;
+    return {
+      totalTime: r.totalTime,
+      deltaVsBest: r.totalTime - bestTime,
+      plan: r.plan.map((s) => [s.compound, s.laps] as [CompoundName, number]),
+      stopCount: r.stopCount,
+      pitStopLaps: r.pitStopLaps,
+      scTimeSavings: scSavings,
+    };
+  });
 }

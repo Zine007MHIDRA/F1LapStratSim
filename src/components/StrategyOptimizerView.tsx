@@ -2,9 +2,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { CircuitData, StrategyPlanResult } from '../engine/types';
-import { optimizeStrategy, simulateRaceStrategy } from '../engine/strategyOptimizer';
+import { optimizeStrategy, simulateRaceStrategy, TRACK_SC_PROBABILITY } from '../engine/strategyOptimizer';
 import { COMPOUNDS } from '../engine/tyreModel';
-import { Play, Timer, Sparkles, AlertCircle } from 'lucide-react';
+import { ShieldAlert, AlertCircle, Wind, Sparkles } from 'lucide-react';
 
 interface StrategyOptimizerViewProps {
   circuit: CircuitData;
@@ -15,20 +15,32 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
   const [pitLossS, setPitLossS] = useState<number>(circuit.pitLossS || 23.0);
   const [include2Stop, setInclude2Stop] = useState<boolean>(true);
   const [selectedPlanIdx, setSelectedPlanIdx] = useState<number>(0);
-  const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [scLap, setScLap] = useState<number | null>(null);
+  const [simulateDirtyAir, setSimulateDirtyAir] = useState<boolean>(false);
+
+  // Circuit Safety Car Risk
+  const scInfo = TRACK_SC_PROBABILITY[circuit.id.toLowerCase()] || { scProb: 0.40, vscProb: 0.40 };
 
   // Compute optimized strategies
   const strategies: StrategyPlanResult[] = useMemo(() => {
-    return optimizeStrategy(circuit, totalLaps, include2Stop, 15);
-  }, [circuit, totalLaps, include2Stop]);
+    return optimizeStrategy(circuit, totalLaps, include2Stop, 15, {
+      scLap: scLap ?? undefined,
+      dirtyAirLaps: simulateDirtyAir ? 12 : 0,
+    });
+  }, [circuit, totalLaps, include2Stop, scLap, simulateDirtyAir]);
 
   // Selected strategy detailed race breakdown
   const activePlan = strategies[selectedPlanIdx] || strategies[0];
   const raceSimulation = useMemo(() => {
     if (!activePlan) return null;
     const stints = activePlan.plan.map(([c, laps]) => ({ compound: c, laps }));
-    return simulateRaceStrategy(circuit, stints, { pitLossS, step: 15.0 });
-  }, [circuit, activePlan, pitLossS]);
+    return simulateRaceStrategy(circuit, stints, {
+      pitLossS,
+      step: 15.0,
+      scLap: scLap ?? undefined,
+      dirtyAirLaps: simulateDirtyAir ? 12 : 0,
+    });
+  }, [circuit, activePlan, pitLossS, scLap, simulateDirtyAir]);
 
   const formatRaceTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -93,6 +105,51 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
             </label>
           </div>
         </div>
+
+        {/* Safety Car & Traffic Simulation Row */}
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#212A3E] mt-4 pt-3 text-xs mono">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-3.5 h-3.5 text-[#FFB703]" />
+              <span className="text-[#64748B]">CIRCUIT SC PROBABILITY:</span>
+              <span className="text-white font-bold">{Math.round(scInfo.scProb * 100)}%</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[#64748B]">VSC PROBABILITY:</span>
+              <span className="text-[#00F0FF] font-bold">{Math.round(scInfo.vscProb * 100)}%</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {/* Dirty Air Wake Toggle */}
+            <label className="flex items-center gap-2 cursor-pointer bg-[#141A29] px-2.5 py-1 rounded border border-[#212A3E]">
+              <Wind className="w-3.5 h-3.5 text-[#64748B]" />
+              <input
+                type="checkbox"
+                checked={simulateDirtyAir}
+                onChange={(e) => setSimulateDirtyAir(e.target.checked)}
+                className="rounded accent-[#E10600]"
+              />
+              <span className="text-white">DIRTY AIR TRAFFIC (+1.15s)</span>
+            </label>
+
+            {/* Safety Car Lap Trigger */}
+            <div className="flex items-center gap-2 bg-[#141A29] px-2.5 py-1 rounded border border-[#212A3E]">
+              <span className="text-[#FFB703]">TEST SC ON LAP:</span>
+              <select
+                value={scLap ?? ''}
+                onChange={(e) => setScLap(e.target.value ? parseInt(e.target.value) : null)}
+                className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
+              >
+                <option value="" className="bg-[#141A29] text-white">None (Full Green)</option>
+                <option value="15" className="bg-[#141A29] text-white">Lap 15</option>
+                <option value="22" className="bg-[#141A29] text-white">Lap 22</option>
+                <option value="30" className="bg-[#141A29] text-white">Lap 30</option>
+                <option value="38" className="bg-[#141A29] text-white">Lap 38</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Strategy Leaderboard & Stint Visualizer */}
@@ -104,7 +161,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
               RANKED CANDIDATES ({strategies.length})
             </span>
             <span className="text-[11px] mono text-[#64748B]">
-              CIRCUIT PIT LOSS: {pitLossS}s
+              PIT LOSS: {scLap ? `${(pitLossS * 0.55).toFixed(1)}s (SC)` : `${pitLossS}s`}
             </span>
           </div>
 
@@ -137,6 +194,11 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
                       <span className="text-xs mono font-semibold text-white">
                         {strat.stopCount}-STOP
                       </span>
+                      {strat.pitStopLaps && strat.pitStopLaps.length > 0 && (
+                        <span className="text-[10px] mono text-[#FFB703]">
+                          [BOX L{strat.pitStopLaps.join(', L')}]
+                        </span>
+                      )}
                     </div>
                     <div className="text-right mono">
                       <span className="text-xs font-bold text-white block">
@@ -196,7 +258,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
           {/* Stint Gantt Timeline Bar */}
           {activePlan && (
             <div className="space-y-2">
-              <span className="text-[11px] mono text-[#64748B] uppercase">Stint Horizon</span>
+              <span className="text-[11px] mono text-[#64748B] uppercase">Stint Horizon & Pit Windows</span>
               <div className="w-full h-10 bg-[#141A29] rounded flex overflow-hidden border border-[#212A3E]">
                 {activePlan.plan.map(([c, laps], idx) => {
                   const comp = COMPOUNDS[c];
@@ -260,7 +322,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
               • Degradation rates are scaled by the circuit tyre stress factor ({circuit.tyreStress}x).
             </p>
             <p>
-              • Fuel mass burning off (~1.6 kg/lap) gains approximately +0.035s per lap, offsetting the initial linear tyre degradation until reaching the thermal cliff.
+              • Safety Car discount: Pitting under an active SC or VSC saves ~45% of the pit loss (~{(pitLossS * 0.45).toFixed(1)}s), vaulting multi-stop aggressive runners ahead of conservation plans.
             </p>
           </div>
         </div>

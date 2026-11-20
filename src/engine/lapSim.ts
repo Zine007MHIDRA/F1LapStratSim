@@ -11,7 +11,9 @@ import {
   maxTractionAccel,
   maxBrakeDecel,
   dragForce,
+  downforceForce,
 } from './carModel';
+import { computeTrackElevation } from './trackElevation';
 
 const DRS_MIN_STRAIGHT_M = 150.0;
 const DRS_SPEED_THRESHOLD_KMH = 200.0;
@@ -198,6 +200,7 @@ function forwardPass(
   drsEligible: boolean[],
   car: CarParams,
   ersPower: number[],
+  gradeAngleRad: number[],
 ): number[] {
   const n = vCeiling.length;
   const v = [...vCeiling];
@@ -214,7 +217,8 @@ function forwardPass(
     const vPrev = v[prev];
     const latGDemand = lateralG(vPrev, radius[prev]);
     const isDrs = drsEligible[prev] && vPrev * 3.6 > DRS_SPEED_THRESHOLD_KMH;
-    const a = maxTractionAccel(vPrev, car, latGDemand, isDrs, ersPower[prev]);
+    const grade = gradeAngleRad[prev] || 0.0;
+    const a = maxTractionAccel(vPrev, car, latGDemand, isDrs, ersPower[prev], grade);
     const vPossible = Math.sqrt(Math.max(vPrev * vPrev + 2.0 * a * ds, 0.0));
     v[i] = Math.min(vPossible, vCeiling[i]);
   }
@@ -226,6 +230,7 @@ function backwardPass(
   dsArr: number[],
   radius: number[],
   car: CarParams,
+  gradeAngleRad: number[],
 ): number[] {
   const n = vCeiling.length;
   const v = [...vCeiling];
@@ -241,7 +246,8 @@ function backwardPass(
     const ds = dsArr[i];
     const vNext = v[next];
     const latGDemand = lateralG(vNext, radius[i]);
-    const aBrake = maxBrakeDecel(vNext, car, latGDemand);
+    const grade = gradeAngleRad[i] || 0.0;
+    const aBrake = maxBrakeDecel(vNext, car, latGDemand, grade);
     const vPossible = Math.sqrt(Math.max(vNext * vNext + 2.0 * aBrake * ds, 0.0));
     v[i] = Math.min(vPossible, vCeiling[i]);
   }
@@ -255,14 +261,15 @@ function converge(
   drsEligible: boolean[],
   car: CarParams,
   ersPower: number[],
+  gradeAngleRad: number[],
   sweeps: number = N_SWEEPS,
 ): number[] {
   let v = [...vCap];
   for (let s = 0; s < sweeps; s++) {
-    const vFwd = forwardPass(v, dsArr, radius, drsEligible, car, ersPower);
+    const vFwd = forwardPass(v, dsArr, radius, drsEligible, car, ersPower, gradeAngleRad);
     for (let i = 0; i < v.length; i++) v[i] = Math.min(v[i], vFwd[i]);
 
-    const vBwd = backwardPass(v, dsArr, radius, car);
+    const vBwd = backwardPass(v, dsArr, radius, car, gradeAngleRad);
     for (let i = 0; i < v.length; i++) v[i] = Math.min(v[i], vBwd[i]);
   }
   return v;
@@ -350,6 +357,7 @@ export function simulateLap(
   };
 
   const { s, radius, segIdx, dsArr, lapLengthM } = buildDistanceAxis(circuit.segments, step);
+  const { elevationM, gradeAngleRad, gradePct } = computeTrackElevation(circuit, s, lapLengthM);
   const n = s.length;
 
   // 1. Calculate corner and mechanical top-speed ceilings
@@ -363,7 +371,7 @@ export function simulateLap(
 
   // 2. Unconstrained speed profile (full MGU-K)
   let ersPower = new Array<number>(n).fill(effCar.mgukPowerW);
-  let v = converge(vCap, dsArr, radius, drsEligible, effCar, ersPower, N_SWEEPS);
+  let v = converge(vCap, dsArr, radius, drsEligible, effCar, ersPower, gradeAngleRad, N_SWEEPS);
   const vFree = [...v];
 
   // 3. ERS integration and convergence loop
@@ -383,7 +391,7 @@ export function simulateLap(
       const res = integrateErs(v, dsArr, dtTmp, effCar);
       ersPower = res.ersPower;
       ersDiagnostics = res.diagnostics;
-      v = converge(vCap, dsArr, radius, drsEligible, effCar, ersPower, 2);
+      v = converge(vCap, dsArr, radius, drsEligible, effCar, ersPower, gradeAngleRad, 2);
     }
   }
 
@@ -457,7 +465,23 @@ export function simulateLap(
     if (speedKmh[i] > speedTrapKmh) speedTrapKmh = speedKmh[i];
   }
 
-  // 7. Pedal derivation
+  // 7. Dynamic front/rear axle normal loads
+  const frontNormalLoadN = new Array<number>(n);
+  const rearNormalLoadN = new Array<number>(n);
+  const L = effCar.wheelbaseM ?? 3.60;
+  const h = effCar.cgHeightM ?? 0.31;
+  const frontStaticFrac = effCar.frontWeightFraction ?? 0.455;
+
+  for (let i = 0; i < n; i++) {
+    const dfTotal = downforceForce(v[i], effCar, radius[i] < Infinity);
+    const dfFront = dfTotal * 0.45;
+    const dfRear = dfTotal * 0.55;
+    const deltaLoad = (effCar.totalMass * aEdge[i] * h) / L;
+    frontNormalLoadN[i] = Math.max(100.0, effCar.totalMass * G * Math.cos(gradeAngleRad[i]) * frontStaticFrac - deltaLoad + dfFront);
+    rearNormalLoadN[i] = Math.max(100.0, effCar.totalMass * G * Math.cos(gradeAngleRad[i]) * (1.0 - frontStaticFrac) + deltaLoad + dfRear);
+  }
+
+  // 8. Pedal derivation
   const { throttlePct, brakePct, gear } = derivePedals(
     v,
     dsArr,
@@ -486,6 +510,10 @@ export function simulateLap(
       ...ersDiagnostics,
       ersPowerTrace: ersPower,
     },
+    elevationM,
+    gradePct,
+    frontNormalLoadN,
+    rearNormalLoadN,
     valid: true,
     warnings: [],
   };

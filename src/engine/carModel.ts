@@ -83,6 +83,10 @@ export function car2025(trackName: string = "Monza", trim: 'qualifying' | 'race'
     tyreMu: 1.70,
     frictionEllipseP: 1.6,
     maxDecelG: 5.5,
+    wheelbaseM: 3.60,
+    cgHeightM: 0.31,
+    frontWeightFraction: 0.455,
+    brakeBias: 0.56,
   };
 }
 
@@ -132,6 +136,10 @@ export function car2026(trackName: string = "Monza", trim: 'qualifying' | 'race'
     tyreMu: 1.65,
     frictionEllipseP: 1.6,
     maxDecelG: 5.5,
+    wheelbaseM: 3.40, // 2026 shorter wheelbase
+    cgHeightM: 0.30,
+    frontWeightFraction: 0.450,
+    brakeBias: 0.55,
   };
 }
 
@@ -197,7 +205,8 @@ export function maxCornerSpeed(radiusM: number, car: CarParams): number {
 }
 
 /**
- * Maximum traction acceleration (m/s^2) out of corners and along straights.
+ * Maximum traction acceleration (m/s^2) out of corners and along straights,
+ * incorporating rear axle dynamic load transfer and road grade resistance.
  */
 export function maxTractionAccel(
   vMps: number,
@@ -205,9 +214,13 @@ export function maxTractionAccel(
   latGDemand: number = 0.0,
   isDrsOpen: boolean = false,
   ersPowerLimitW: number | null = null,
+  gradeAngleRad: number = 0.0,
 ): number {
   const v = Math.max(1.0, vMps);
   const m = car.totalMass;
+  const L = car.wheelbaseM ?? 3.60;
+  const h = car.cgHeightM ?? 0.31;
+  const frontStaticFrac = car.frontWeightFraction ?? 0.455;
 
   // Powertrain power available
   let mguk = car.mgukPowerW;
@@ -217,50 +230,77 @@ export function maxTractionAccel(
   const totalPower = car.icePowerW + mguk;
   const aEngine = totalPower / (m * v);
 
-  // Tire grip limit (friction ellipse)
-  const fz = m * G + downforceForce(v, car, false);
-  const mu = loadSensitiveMu(car, fz);
-  const aLongMax = (mu * fz) / m;
-  const aLatMax = (mu * fz) / m;
+  // Aerodynamic downforce (42% front / 58% rear distribution)
+  const dfTotal = downforceForce(v, car, false);
+  const dfRear = dfTotal * 0.58;
 
-  const latRatio = Math.min(0.999, (Math.abs(latGDemand) * G) / Math.max(0.1, aLatMax));
+  // Initial estimate of longitudinal accel to calculate rear load transfer squat
+  const aEst = Math.min(aEngine, 1.5 * G);
+  const deltaLoadRear = (m * aEst * h) / L;
+  const fzRear = Math.max(100.0, m * G * Math.cos(gradeAngleRad) * (1.0 - frontStaticFrac) + deltaLoadRear + dfRear);
+
+  // Rear tire grip limit (rear-wheel drive)
+  const muRear = loadSensitiveMu(car, fzRear * 2.0); // per-axle normalized
+  const aLongRearMax = (muRear * fzRear) / (m * (1.0 - frontStaticFrac));
+
+  // Friction ellipse combined slip reservation
+  const latRatio = Math.min(0.999, (Math.abs(latGDemand) * G) / Math.max(0.1, aLongRearMax));
   const gripRemainingFraction = Math.pow(Math.max(0.0, 1.0 - Math.pow(latRatio, car.frictionEllipseP)), 1.0 / car.frictionEllipseP);
-  const aTractionLimit = aLongMax * gripRemainingFraction;
+  const aTractionLimit = aLongRearMax * gripRemainingFraction;
 
-  // Aero drag resistance
+  // Aero drag resistance and road grade force
   const fDrag = dragForce(v, car, isDrsOpen);
   const aDrag = fDrag / m;
+  const aGrade = G * Math.sin(gradeAngleRad); // uphill slows, downhill assists
 
-  const aNet = Math.min(aEngine, aTractionLimit) - aDrag;
+  const aNet = Math.min(aEngine, aTractionLimit) - aDrag - aGrade;
   return Math.max(0.0, aNet);
 }
 
 /**
- * Maximum braking deceleration (m/s^2), subject to tyre grip and 5.5g carbon ceiling.
+ * Maximum braking deceleration (m/s^2), incorporating front/rear dynamic load transfer,
+ * brake balance, road grade assist/drag, and 5.5g carbon ceiling.
  */
 export function maxBrakeDecel(
   vMps: number,
   car: CarParams,
   latGDemand: number = 0.0,
+  gradeAngleRad: number = 0.0,
 ): number {
   const v = Math.max(1.0, vMps);
   const m = car.totalMass;
+  const L = car.wheelbaseM ?? 3.60;
+  const h = car.cgHeightM ?? 0.31;
+  const frontStaticFrac = car.frontWeightFraction ?? 0.455;
+  const brakeBias = car.brakeBias ?? 0.56;
 
-  const fz = m * G + downforceForce(v, car, true);
-  const mu = loadSensitiveMu(car, fz);
-  const aLongMax = (mu * fz) / m;
-  const aLatMax = (mu * fz) / m;
+  const dfTotal = downforceForce(v, car, true);
+  const dfFront = dfTotal * 0.45;
+  const dfRear = dfTotal * 0.55;
 
-  const latRatio = Math.min(0.999, (Math.abs(latGDemand) * G) / Math.max(0.1, aLatMax));
+  // Dynamic front weight transfer under high-g braking
+  const aBrakeEst = 4.0 * G;
+  const deltaLoadFront = (m * aBrakeEst * h) / L;
+  const fzFront = Math.max(100.0, m * G * Math.cos(gradeAngleRad) * frontStaticFrac + deltaLoadFront + dfFront);
+  const fzRear = Math.max(100.0, m * G * Math.cos(gradeAngleRad) * (1.0 - frontStaticFrac) - deltaLoadFront + dfRear);
+
+  const muFront = loadSensitiveMu(car, fzFront * 2.0);
+  const muRear = loadSensitiveMu(car, fzRear * 2.0);
+
+  const latRatio = Math.min(0.999, (Math.abs(latGDemand) * G) / Math.max(0.1, muFront * G));
   const gripRemainingFraction = Math.pow(Math.max(0.0, 1.0 - Math.pow(latRatio, car.frictionEllipseP)), 1.0 / car.frictionEllipseP);
-  const aTireBrake = aLongMax * gripRemainingFraction;
+
+  // Braking force is limited by axle that locks first given brakeBias
+  const fMaxFront = (muFront * fzFront * gripRemainingFraction) / brakeBias;
+  const fMaxRear = (muRear * fzRear * gripRemainingFraction) / (1.0 - brakeBias);
+  const aTireBrake = Math.min(fMaxFront, fMaxRear) / m;
 
   const fDrag = dragForce(v, car, false);
   const aDrag = fDrag / m;
+  const aGrade = G * Math.sin(gradeAngleRad); // uphill helps braking (+), downhill lengthens braking (-)
 
-  // Cap with carbon brake mechanical ceiling (e.g. 5.5 g)
   const aBrakeCeiling = car.maxDecelG * G;
-  const aBrake = Math.min(aTireBrake, aBrakeCeiling) + aDrag;
+  const aBrake = Math.min(aTireBrake, aBrakeCeiling) + aDrag + aGrade;
 
   return Math.max(1.0, aBrake);
 }
