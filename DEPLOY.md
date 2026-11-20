@@ -1,129 +1,50 @@
 # Deploying the F1 Pit-Wall Simulator
 
-## TL;DR — Vercel won't run this
+## 1. Vercel Deployment (24/7 Uptime, Zero Cold Starts) — Recommended
 
-Streamlit is a **stateful server**: it keeps a Python process alive and holds a
-WebSocket open to every connected browser. Vercel only runs **stateless
-serverless functions** with a hard 10–60 s execution limit (the strategy
-optimizer alone takes 70 s+) and no long-lived WebSocket. There is no
-supported way to run a Streamlit app on Vercel.
+The simulator has been rebuilt as a **Next.js 16 (React 19 + TypeScript + Tailwind CSS)** application with a client-side physics engine. It runs 100% in the browser with 0 ms server latency, zero serverless execution timeouts, and 24/7 continuous uptime on Vercel without sleep or idling interruptions.
 
-Use one of the hosts below (all free, all built for this). If you specifically
-need your Vercel domain in front of it, see
-[§4 — Vercel as a front door](#4-optional-keep-a-vercel-url).
-
-The app's only runtime dependencies are `streamlit`, `plotly`, `numpy`
-(`requirements.txt`). `matplotlib` / `fastf1` are dev-only
-(`requirements-dev.txt`) and are **not** installed on deploy.
+### One-Click Deploy to Vercel
+1. Push this repository to GitHub:
+   ```bash
+   git add .
+   git commit -m "Rebuild F1 simulation with Next.js 16 for 24/7 Vercel deployment"
+   git push origin main
+   ```
+2. Go to [vercel.com](https://vercel.com) and click **"Add New Project"**.
+3. Import your GitHub repository (`F1LapStratSim`).
+4. Framework Preset will auto-detect as **Next.js**.
+5. Click **Deploy**. In under 60 seconds, your simulator is live at `https://<your-project>.vercel.app`!
 
 ---
 
-## 0. One-time: put the code on GitHub
+## 2. Local Development (Next.js)
 
-Every option below deploys *from a GitHub repo*. Run this from the folder that
-contains `app.py`:
+Run the high-speed Next.js pit-wall application locally:
 
 ```bash
-git init
-git add .
-git commit -m "F1 pit-wall simulator"
-git branch -M main
-gh repo create f1-pitwall-sim --public --source=. --push
+# Install dependencies
+npm install
+
+# Run the development server
+npm run dev
 ```
 
-(or create the repo on github.com and `git remote add origin … && git push -u origin main`)
+Open [http://localhost:3000](http://localhost:3000) with your browser.
 
 ---
 
-## 1. Streamlit Community Cloud — recommended
+## 3. Python CLI & Streamlit App (Optional)
 
-Zero config, free, made for exactly this.
+The original Python vehicle dynamics engine and Streamlit app remain available in the repository:
 
-1. Go to <https://share.streamlit.io> and sign in with GitHub.
-2. **Create app** → pick your repo, branch `main`, **Main file path** `app.py`
-   (or `f1sim/app.py` if you committed the parent folder).
-3. **Advanced settings → Python version → 3.12**.
-4. **Deploy**. First build ~2 min; you get `https://<name>.streamlit.app`.
+```bash
+# Install python dependencies
+pip install -r requirements.txt
 
-It auto-redeploys on every `git push`. `requirements.txt` and
-`.streamlit/config.toml` are picked up automatically.
+# Run the interactive CLI menu
+python main.py
 
----
-
-## 2. Hugging Face Spaces — also great, free
-
-1. <https://huggingface.co/new-space> → **SDK: Streamlit**, hardware **CPU basic (free)**.
-2. Push your code to the Space's git remote (it's just a git repo):
-   ```bash
-   git remote add hf https://huggingface.co/spaces/<user>/<space>
-   git push hf main
-   ```
-3. HF looks for `app.py` at the repo root and `requirements.txt` beside it —
-   both already correct here. Add this frontmatter to the **top** of a
-   `README.md` in the Space (or set it in the Space UI):
-   ```
-   ---
-   title: F1 Pit-Wall Simulator
-   emoji: 🏎️
-   sdk: streamlit
-   app_file: app.py
-   python_version: "3.12"
-   pinned: false
-   ---
-   ```
-
----
-
-## 3. Render — if you want a custom domain / always-on
-
-Uses `render.yaml` (already in the repo).
-
-1. <https://dashboard.render.com> → **New → Blueprint** → connect the repo.
-2. Render reads `render.yaml`: Python 3.12, `pip install -r requirements.txt`,
-   and starts with
-   `streamlit run app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true`.
-3. Free tier sleeps after ~15 min idle (cold start ~30 s). Bump to the
-   Starter plan for always-on + a custom domain.
-
-If a reverse proxy ever blocks the WebSocket (rare on current Streamlit), add
-`--server.allowedHosts "*"` to the start command, or set
-`server.corsAllowedOrigins` in `.streamlit/config.toml`.
-
-The repo also has a **`Procfile`** with the same start command, so Railway,
-Heroku, Fly.io, etc. work the same way (`web:` process → Streamlit on `$PORT`).
-
----
-
-## 4. (Optional) Keep a Vercel URL
-
-If the app must live *behind* a Vercel domain, deploy the Streamlit app on
-one of the hosts above, then use Vercel purely to forward traffic.
-
-**`vercel.json`** in this repo does a redirect — edit the placeholder URL:
-
-```json
-{
-  "redirects": [
-    { "source": "/(.*)", "destination": "https://your-app.streamlit.app/$1", "permanent": false }
-  ]
-}
+# Run the Streamlit web dashboard locally
+streamlit run app.py
 ```
-
-`vercel deploy --prod` and `yourproject.vercel.app` now bounces to the real app.
-A `redirect` changes the address bar; a `rewrite` would proxy and keep your
-domain, but Vercel's proxy does not reliably upgrade Streamlit's WebSocket, so
-**redirect is the safe choice**.
-
----
-
-## Hosted-demo tips
-
-- **Optimizer speed.** `find_best_strategy` is brute force — a 53-lap search at
-  the "Balanced" resolution is ~1–2 min on a free-tier CPU. Point users at the
-  **"Fast" (40 m)** resolution, or lower the default lap count, if the wait
-  feels broken.
-- **No writable disk needed.** The app never writes files, so ephemeral
-  filesystems (Streamlit Cloud, HF, Render free) are fine. Only the FastF1
-  calibration scripts write to `f1_cache/`, and those don't run in the app.
-- **Secrets.** None required. `.streamlit/secrets.toml` is git-ignored if you
-  ever add any.

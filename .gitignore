@@ -5,6 +5,12 @@ venv/
 env/
 *.egg-info/
 
+# Next.js & Node
+node_modules/
+.next/
+out/
+next-env.d.ts
+
 # FastF1 telemetry cache + generated plots
 f1_cache/
 *.png

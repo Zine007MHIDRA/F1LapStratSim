@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-page: #080A0F;
+    --bg-surface: #0E131F;
+    --bg-card: #141A29;
+    --border-color: #212A3E;
+    --border-highlight: #334155;
+    --text-primary: #F1F5F9;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748B;
+    --f1-red: #E10600;
+    --f1-cyan: #00F0FF;
+    --f1-yellow: #FFB703;
+    --f1-green: #00E676;
+    --f1-orange: #FF7A00;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom scrollbars for telemetry panes */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0E131F;
+}
+::-webkit-scrollbar-thumb {
+  background: #212A3E;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
