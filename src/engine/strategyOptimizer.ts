@@ -18,15 +18,30 @@ export interface StintTuple {
 }
 
 export const TRACK_SC_PROBABILITY: Record<string, { scProb: number; vscProb: number }> = {
-  "monza": { scProb: 0.30, vscProb: 0.35 },
-  "silverstone": { scProb: 0.45, vscProb: 0.40 },
-  "spa": { scProb: 0.55, vscProb: 0.50 },
-  "monaco": { scProb: 0.80, vscProb: 0.45 },
-  "suzuka": { scProb: 0.40, vscProb: 0.45 },
   "bahrain": { scProb: 0.35, vscProb: 0.40 },
+  "jeddah": { scProb: 0.75, vscProb: 0.50 },
+  "albert_park": { scProb: 0.65, vscProb: 0.45 },
+  "suzuka": { scProb: 0.40, vscProb: 0.45 },
+  "shanghai": { scProb: 0.45, vscProb: 0.40 },
+  "miami": { scProb: 0.55, vscProb: 0.45 },
+  "imola": { scProb: 0.50, vscProb: 0.45 },
+  "monaco": { scProb: 0.80, vscProb: 0.50 },
+  "montreal": { scProb: 0.65, vscProb: 0.50 },
+  "barcelona": { scProb: 0.30, vscProb: 0.35 },
   "red_bull_ring": { scProb: 0.40, vscProb: 0.50 },
-  "interlagos": { scProb: 0.60, vscProb: 0.50 },
+  "silverstone": { scProb: 0.45, vscProb: 0.40 },
+  "hungaroring": { scProb: 0.35, vscProb: 0.40 },
+  "spa": { scProb: 0.55, vscProb: 0.50 },
+  "zandvoort": { scProb: 0.55, vscProb: 0.45 },
+  "monza": { scProb: 0.30, vscProb: 0.35 },
+  "baku": { scProb: 0.75, vscProb: 0.50 },
+  "singapore": { scProb: 0.95, vscProb: 0.55 },
   "cota": { scProb: 0.45, vscProb: 0.40 },
+  "mexico_city": { scProb: 0.40, vscProb: 0.40 },
+  "interlagos": { scProb: 0.65, vscProb: 0.50 },
+  "las_vegas": { scProb: 0.60, vscProb: 0.45 },
+  "lusail": { scProb: 0.35, vscProb: 0.40 },
+  "yas_marina": { scProb: 0.40, vscProb: 0.40 },
 };
 
 /**

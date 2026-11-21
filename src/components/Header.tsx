@@ -47,9 +47,9 @@ export default function Header({
                 onChange={(e) => onSelectCircuit(e.target.value)}
                 className="bg-[#101524] text-white border border-[#1A2336] rounded-md px-3 py-1 text-xs font-bold focus:outline-none focus:border-[#E10600] cursor-pointer hover:bg-[#151C30] transition-colors mono"
               >
-                {CIRCUITS_LIST.map((c) => (
+                {CIRCUITS_LIST.map((c, idx) => (
                   <option key={c.id} value={c.id}>
-                    {c.flag} {c.name} ({c.country})
+                    R{String(idx + 1).padStart(2, '0')} · {c.flag} {c.name} ({c.country})
                   </option>
                 ))}
               </select>
