@@ -8,11 +8,13 @@ import CircuitBlueprint from '../components/CircuitBlueprint';
 import RegulationsComparison from '../components/RegulationsComparison';
 import TelemetryChart from '../components/TelemetryChart';
 import TrackMap from '../components/TrackMap';
+import F1IntroSplash from '../components/F1IntroSplash';
 import { getCircuit } from '../data/circuits';
 import { car2025, car2026 } from '../engine/carModel';
 import { simulateLap } from '../engine/lapSim';
 
 export default function Home() {
+  const [showIntro, setShowIntro] = useState<boolean>(false);
   const [circuitId, setCircuitId] = useState<string>('cota');
   const [era, setEra] = useState<'2025' | '2026'>('2025');
   const [activeTab, setActiveTab] = useState<
@@ -25,6 +27,12 @@ export default function Home() {
       const params = new URLSearchParams(window.location.search);
       const c = params.get('circuit');
       if (c) setCircuitId(c);
+
+      const hasSeen = sessionStorage.getItem('f1_intro_seen');
+      const skipParam = params.get('skipIntro');
+      if (!hasSeen && skipParam !== 'true') {
+        setShowIntro(true);
+      }
     }
   }, []);
 
@@ -36,6 +44,18 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#06080C] text-[#F8FAFC] flex flex-col">
+      {/* First-visit F1 Logo Stroke Trace & Team Radio Intro */}
+      {showIntro && (
+        <F1IntroSplash
+          onDismiss={() => {
+            setShowIntro(false);
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('f1_intro_seen', 'true');
+            }
+          }}
+        />
+      )}
+
       {/* Top Navigation & Circuit Bar */}
       <Header
         currentCircuit={circuit}
