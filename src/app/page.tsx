@@ -27,7 +27,7 @@ export default function Home() {
   const simulation = simulateLap(circuit, baseCar, { step: 3.0 });
 
   return (
-    <div className="min-h-screen bg-[#080A0F] text-[#F1F5F9] flex flex-col">
+    <div className="min-h-screen bg-[#06080C] text-[#F8FAFC] flex flex-col">
       {/* Top Navigation & Circuit Bar */}
       <Header
         currentCircuit={circuit}
@@ -39,14 +39,14 @@ export default function Home() {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
         {activeTab === 'simulator' && (
           <SimulatorView circuit={circuit} era={era} />
         )}
 
         {activeTab === 'telemetry' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
               <div className="lg:col-span-5">
                 <TrackMap
                   circuit={circuit}
@@ -81,14 +81,14 @@ export default function Home() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-[#212A3E] bg-[#0E131F] py-4 text-xs text-[#94A3B8]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 mono">
+      <footer className="border-t border-[#1A2336] bg-[#080B12] py-3.5 text-xs text-[#64748B]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 mono text-[11px]">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#00E676] inline-block animate-pulse"></span>
-            <span>SIMULATION ENGINE ONLINE (24/7 CLIENT-SIDE WASM/TS)</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00E676] inline-block animate-pulse"></span>
+            <span className="text-[#94A3B8]">F1 // PIT-WALL TELEMETRY ENGINE ONLINE</span>
           </div>
           <div>
-            FastF1 & OpenF1 Telemetry • Pirelli Tyre Degradation • FIA Technical Regulations
+            FastF1 Ingested Benchmarks • Pirelli Tyre Degradation • FIA Technical Regulations
           </div>
         </div>
       </footer>

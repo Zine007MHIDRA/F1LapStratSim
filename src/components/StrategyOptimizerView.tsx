@@ -52,21 +52,21 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
   return (
     <div className="space-y-6">
       {/* Configuration Controls Bar */}
-      <div className="bg-[#0E131F] border border-[#212A3E] rounded-lg p-5">
+      <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-5 shadow-2xl">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-bold text-white flex items-center gap-2">
-              <span className="w-2 h-4 bg-[#E10600] rounded-xs"></span>
+            <h2 className="text-sm font-bold text-white flex items-center gap-2 tracking-wider">
+              <span className="w-1.5 h-3.5 bg-[#E10600] rounded-xs"></span>
               RACE STRATEGY OPTIMIZER
             </h2>
-            <p className="text-xs text-[#94A3B8] mt-1">
-              Combinatorial pit stop search with Pirelli thermal grip decay and ~1.6 kg/lap fuel burn-off.
+            <p className="text-xs text-[#94A3B8] mt-1 font-mono">
+              Combinatorial pit stop search • Pirelli thermal grip decay • ~1.6 kg/lap fuel burn-off
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-4 text-xs mono">
+          <div className="flex flex-wrap items-center gap-3 text-xs mono">
             {/* Total Laps Input */}
-            <div className="flex items-center gap-2 bg-[#141A29] px-3 py-1.5 rounded border border-[#212A3E]">
+            <div className="flex items-center gap-2 bg-[#080B12] px-3 py-1.5 rounded-lg border border-[#1A2336]">
               <span className="text-[#64748B]">RACE LAPS:</span>
               <input
                 type="number"
@@ -79,7 +79,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
             </div>
 
             {/* Pit Stop Delta Input */}
-            <div className="flex items-center gap-2 bg-[#141A29] px-3 py-1.5 rounded border border-[#212A3E]">
+            <div className="flex items-center gap-2 bg-[#080B12] px-3 py-1.5 rounded-lg border border-[#1A2336]">
               <span className="text-[#64748B]">PIT LOSS:</span>
               <input
                 type="number"
@@ -94,20 +94,20 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
             </div>
 
             {/* Include 2-Stops Checkbox */}
-            <label className="flex items-center gap-2 cursor-pointer bg-[#141A29] px-3 py-1.5 rounded border border-[#212A3E] hover:border-[#334155]">
+            <label className="flex items-center gap-2 cursor-pointer bg-[#080B12] px-3 py-1.5 rounded-lg border border-[#1A2336] hover:border-[#2A3854] transition-colors">
               <input
                 type="checkbox"
                 checked={include2Stop}
                 onChange={(e) => setInclude2Stop(e.target.checked)}
                 className="rounded accent-[#E10600]"
               />
-              <span className="text-white">ALLOW 2-STOP</span>
+              <span className="text-white font-mono">ALLOW 2-STOP</span>
             </label>
           </div>
         </div>
 
         {/* Safety Car & Traffic Simulation Row */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#212A3E] mt-4 pt-3 text-xs mono">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#1A2336] mt-4 pt-3 text-xs mono">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
               <ShieldAlert className="w-3.5 h-3.5 text-[#FFB703]" />
@@ -120,9 +120,9 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             {/* Dirty Air Wake Toggle */}
-            <label className="flex items-center gap-2 cursor-pointer bg-[#141A29] px-2.5 py-1 rounded border border-[#212A3E]">
+            <label className="flex items-center gap-2 cursor-pointer bg-[#080B12] px-2.5 py-1.5 rounded-lg border border-[#1A2336] hover:border-[#2A3854] transition-colors">
               <Wind className="w-3.5 h-3.5 text-[#64748B]" />
               <input
                 type="checkbox"
@@ -134,18 +134,18 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
             </label>
 
             {/* Safety Car Lap Trigger */}
-            <div className="flex items-center gap-2 bg-[#141A29] px-2.5 py-1 rounded border border-[#212A3E]">
+            <div className="flex items-center gap-2 bg-[#080B12] px-2.5 py-1.5 rounded-lg border border-[#1A2336]">
               <span className="text-[#FFB703]">TEST SC ON LAP:</span>
               <select
                 value={scLap ?? ''}
                 onChange={(e) => setScLap(e.target.value ? parseInt(e.target.value) : null)}
                 className="bg-transparent text-white font-bold focus:outline-none cursor-pointer"
               >
-                <option value="" className="bg-[#141A29] text-white">None (Full Green)</option>
-                <option value="15" className="bg-[#141A29] text-white">Lap 15</option>
-                <option value="22" className="bg-[#141A29] text-white">Lap 22</option>
-                <option value="30" className="bg-[#141A29] text-white">Lap 30</option>
-                <option value="38" className="bg-[#141A29] text-white">Lap 38</option>
+                <option value="" className="bg-[#0B0F19] text-white">None (Full Green)</option>
+                <option value="15" className="bg-[#0B0F19] text-white">Lap 15</option>
+                <option value="22" className="bg-[#0B0F19] text-white">Lap 22</option>
+                <option value="30" className="bg-[#0B0F19] text-white">Lap 30</option>
+                <option value="38" className="bg-[#0B0F19] text-white">Lap 38</option>
               </select>
             </div>
           </div>
@@ -155,9 +155,9 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
       {/* Strategy Leaderboard & Stint Visualizer */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left: Ranked Strategy Leaderboard (5 cols) */}
-        <div className="lg:col-span-5 bg-[#0E131F] border border-[#212A3E] rounded-lg p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between border-b border-[#212A3E] pb-2">
-            <span className="text-xs font-bold tracking-wider text-[#94A3B8] uppercase">
+        <div className="lg:col-span-5 bg-[#0B0F19] border border-[#1A2336] rounded-xl p-4 flex flex-col gap-3 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-[#1A2336] pb-2">
+            <span className="text-xs font-bold tracking-wider text-[#94A3B8] uppercase font-mono">
               RANKED CANDIDATES ({strategies.length})
             </span>
             <span className="text-[11px] mono text-[#64748B]">
@@ -165,7 +165,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
             </span>
           </div>
 
-          <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+          <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
             {strategies.map((strat, idx) => {
               const isSelected = selectedPlanIdx === idx;
               const isOptimal = idx === 0;
@@ -174,19 +174,19 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
                 <div
                   key={idx}
                   onClick={() => setSelectedPlanIdx(idx)}
-                  className={`p-3 rounded border cursor-pointer transition-all ${
+                  className={`p-3 rounded-lg border cursor-pointer transition-all ${
                     isSelected
-                      ? 'bg-[#141A29] border-[#E10600] shadow-md'
-                      : 'bg-[#101624] border-[#212A3E] hover:border-[#334155]'
+                      ? 'bg-[#101524] border-[#E10600] shadow-lg ring-1 ring-[#E10600]/30'
+                      : 'bg-[#080B12] border-[#1A2336] hover:border-[#2A3854]'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
                       <span
-                        className={`text-xs font-bold px-2 py-0.5 rounded ${
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded font-mono ${
                           isOptimal
                             ? 'bg-[#E10600] text-white'
-                            : 'bg-[#212A3E] text-[#94A3B8]'
+                            : 'bg-[#1A2336] text-[#94A3B8]'
                         }`}
                       >
                         #{idx + 1} {isOptimal ? 'OPTIMAL' : ''}
@@ -221,7 +221,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
                       return (
                         <React.Fragment key={sIdx}>
                           <span
-                            className="text-[11px] font-bold px-2 py-0.5 rounded text-black flex items-center gap-1"
+                            className="text-[10px] font-bold px-2 py-0.5 rounded text-black flex items-center gap-1"
                             style={{ backgroundColor: comp.color }}
                           >
                             {c.toUpperCase()} ({laps}L)
@@ -240,17 +240,17 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
         </div>
 
         {/* Right: Detailed Stint Breakdown & Lap Timeline (7 cols) */}
-        <div className="lg:col-span-7 bg-[#0E131F] border border-[#212A3E] rounded-lg p-4 flex flex-col gap-4">
-          <div className="border-b border-[#212A3E] pb-3 flex items-center justify-between">
+        <div className="lg:col-span-7 bg-[#0B0F19] border border-[#1A2336] rounded-xl p-4 flex flex-col gap-4 shadow-2xl">
+          <div className="border-b border-[#1A2336] pb-3 flex items-center justify-between">
             <div>
-              <span className="text-xs font-bold tracking-wider text-[#94A3B8] uppercase block">
+              <span className="text-xs font-bold tracking-wider text-[#94A3B8] uppercase block font-mono">
                 STRATEGY TIMELINE: #{selectedPlanIdx + 1}
               </span>
               <span className="text-xs mono text-white font-medium">
                 Total Race Time: {activePlan ? formatRaceTime(activePlan.totalTime) : ''}
               </span>
             </div>
-            <span className="text-xs mono px-2.5 py-1 rounded bg-[#141A29] border border-[#212A3E] text-[#00F0FF]">
+            <span className="text-xs mono px-2.5 py-1 rounded-lg bg-[#080B12] border border-[#1A2336] text-[#00F0FF]">
               {circuit.fullName}
             </span>
           </div>
@@ -259,7 +259,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
           {activePlan && (
             <div className="space-y-2">
               <span className="text-[11px] mono text-[#64748B] uppercase">Stint Horizon & Pit Windows</span>
-              <div className="w-full h-10 bg-[#141A29] rounded flex overflow-hidden border border-[#212A3E]">
+              <div className="w-full h-10 bg-[#080B12] rounded-lg flex overflow-hidden border border-[#1A2336]">
                 {activePlan.plan.map(([c, laps], idx) => {
                   const comp = COMPOUNDS[c];
                   const pct = (laps / totalLaps) * 100;
@@ -267,7 +267,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
                     <div
                       key={idx}
                       style={{ width: `${pct}%`, backgroundColor: comp.color }}
-                      className="h-full flex items-center justify-center text-black font-bold text-xs border-r border-[#080A0F]/30"
+                      className="h-full flex items-center justify-center text-black font-bold text-xs border-r border-[#080B12]/40"
                       title={`${c.toUpperCase()} Stint: ${laps} laps`}
                     >
                       {c.toUpperCase()} ({laps}L)
@@ -290,7 +290,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
                 </span>
               </div>
 
-              <div className="h-44 w-full bg-[#141A29] rounded border border-[#212A3E] p-2 overflow-hidden flex flex-col justify-end relative">
+              <div className="h-44 w-full bg-[#080B12] rounded-lg border border-[#1A2336] p-2 overflow-hidden flex flex-col justify-end relative">
                 {/* Visual sparkline of lap times */}
                 <div className="flex items-end h-full gap-0.5">
                   {raceSimulation.lapTimes.map((t, lapIdx) => {
@@ -301,7 +301,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
                     return (
                       <div
                         key={lapIdx}
-                        className="flex-1 bg-[#00F0FF] hover:bg-white rounded-t-xs transition-colors"
+                        className="flex-1 bg-[#00F0FF]/80 hover:bg-white rounded-t-xs transition-colors"
                         style={{ height: `${normH}%` }}
                         title={`Lap ${lapIdx + 1}: ${t.toFixed(3)}s (Fuel: ${raceSimulation.fuelMass[lapIdx].toFixed(1)}kg)`}
                       />
@@ -313,7 +313,7 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
           )}
 
           {/* Strategy Technical Notes */}
-          <div className="bg-[#141A29] border border-[#212A3E] rounded p-3 text-xs text-[#94A3B8] space-y-1.5">
+          <div className="bg-[#080B12] border border-[#1A2336] rounded-lg p-3 text-xs text-[#94A3B8] space-y-1.5 font-mono">
             <div className="flex items-center gap-2 text-white font-semibold">
               <AlertCircle className="w-3.5 h-3.5 text-[#FFB703]" />
               Strategic Pit Window Insights

@@ -7,7 +7,7 @@ import { simulateLap } from '../engine/lapSim';
 import { COMPOUNDS, gripMultiplier } from '../engine/tyreModel';
 import TrackMap from './TrackMap';
 import TelemetryChart from './TelemetryChart';
-import { Gauge, Sliders, Battery, RotateCcw, Award } from 'lucide-react';
+import { Sliders, Battery } from 'lucide-react';
 
 interface SimulatorViewProps {
   circuit: CircuitData;
@@ -18,7 +18,7 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
   // Simulator tuning parameters
   const [compound, setCompound] = useState<CompoundName>('soft');
   const [trim, setTrim] = useState<'qualifying' | 'race'>('qualifying');
-  const [aeroOffset, setAeroOffset] = useState<number>(0); // -10% to +10% downforce
+  const [aeroOffset, setAeroOffset] = useState<number>(0);
   const [hoverDistM, setHoverDistM] = useState<number>(0);
 
   // Derive configured car model
@@ -28,12 +28,12 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
     return {
       ...base,
       ClA: base.ClA * aeroMult,
-      CdA: base.CdA * (1.0 + (aeroOffset / 100.0) * 0.4), // induced drag follows ClA
+      CdA: base.CdA * (1.0 + (aeroOffset / 100.0) * 0.4),
       cornerClA: base.cornerClA ? base.cornerClA * aeroMult : undefined,
     };
   }, [era, circuit.name, trim, aeroOffset]);
 
-  // Run physics engine simulation (runs in <2 ms in client browser!)
+  // Run physics engine simulation (<2 ms client-side)
   const simulation = useMemo(() => {
     const tyre = COMPOUNDS[compound];
     const gMult = gripMultiplier(tyre, 1, circuit.tyreStress || 1.0);
@@ -55,101 +55,102 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Simulation Headline Results Cards */}
+    <div className="space-y-4">
+      {/* 1. Simulation Headline Results Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {/* Lap Time & Delta */}
-        <div className="col-span-2 bg-[#0E131F] border border-[#212A3E] rounded-lg p-3.5">
-          <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+        <div className="col-span-2 bg-[#0B0F19] border border-[#1A2336] rounded-xl p-4 shadow-xl">
+          <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-[#64748B] block">
             SIMULATED LAP TIME
           </span>
-          <div className="flex items-baseline gap-2 mt-0.5">
-            <span className="text-2xl sm:text-3xl font-bold text-white mono">
+          <div className="flex items-baseline gap-2.5 mt-1">
+            <span className="text-3xl font-black text-white mono tabular">
               {formatLapTime(simulation.lapTime)}
             </span>
             <span
-              className={`text-xs mono font-bold px-1.5 py-0.5 rounded ${
+              className={`text-xs mono font-black px-2 py-0.5 rounded ${
                 isFasterThanPole
-                  ? 'bg-[#00E676]/20 text-[#00E676]'
-                  : 'bg-[#E10600]/20 text-[#E10600]'
+                  ? 'bg-[#00E676]/15 text-[#00E676] border border-[#00E676]/30'
+                  : 'bg-[#E10600]/15 text-[#E10600] border border-[#E10600]/30'
               }`}
             >
               {isFasterThanPole ? '' : '+'}
               {poleDelta.toFixed(3)}s vs Pole
             </span>
           </div>
-          <div className="text-[11px] text-[#94A3B8] mt-1 mono">
-            Benchmark: {circuit.poleDriver} ({formatLapTime(circuit.poleLapTime)})
+          <div className="text-[11px] text-[#64748B] mt-1.5 mono">
+            Benchmark: <strong className="text-[#94A3B8]">{circuit.poleDriver}</strong> ({formatLapTime(circuit.poleLapTime)})
           </div>
         </div>
 
         {/* Speed Trap */}
-        <div className="bg-[#0E131F] border border-[#212A3E] rounded-lg p-3.5">
-          <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+        <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-4 shadow-xl">
+          <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-[#64748B] block">
             SPEED TRAP V_MAX
           </span>
-          <div className="text-xl sm:text-2xl font-bold text-white mono mt-0.5">
-            {simulation.speedTrapKmh.toFixed(1)} <span className="text-xs text-[#94A3B8]">km/h</span>
+          <div className="text-2xl font-black text-white mono tabular mt-1">
+            {simulation.speedTrapKmh.toFixed(1)}{' '}
+            <span className="text-xs font-normal text-[#64748B]">km/h</span>
           </div>
-          <span className="text-[11px] text-[#00F0FF] mono">
-            Real: {circuit.topSpeedKmh} km/h
+          <span className="text-[11px] text-[#00F0FF] mono mt-1.5 block">
+            Official: {circuit.topSpeedKmh} km/h
           </span>
         </div>
 
         {/* Sector 1 */}
-        <div className="bg-[#0E131F] border border-[#212A3E] rounded-lg p-3.5">
-          <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+        <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-4 shadow-xl">
+          <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-[#64748B] block">
             SECTOR 1
           </span>
-          <div className="text-xl sm:text-2xl font-bold text-[#FFB703] mono mt-0.5">
+          <div className="text-2xl font-black text-[#FFB703] mono tabular mt-1">
             {simulation.sectorTimes[0].toFixed(3)}s
           </div>
-          <span className="text-[11px] text-[#64748B] mono">
+          <span className="text-[11px] text-[#64748B] mono mt-1.5 block">
             {(simulation.sectorBoundsM[0] / 1000).toFixed(2)} km
           </span>
         </div>
 
         {/* Sector 2 */}
-        <div className="bg-[#0E131F] border border-[#212A3E] rounded-lg p-3.5">
-          <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+        <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-4 shadow-xl">
+          <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-[#64748B] block">
             SECTOR 2
           </span>
-          <div className="text-xl sm:text-2xl font-bold text-[#FFB703] mono mt-0.5">
+          <div className="text-2xl font-black text-[#00F0FF] mono tabular mt-1">
             {simulation.sectorTimes[1].toFixed(3)}s
           </div>
-          <span className="text-[11px] text-[#64748B] mono">
+          <span className="text-[11px] text-[#64748B] mono mt-1.5 block">
             {((simulation.sectorBoundsM[1] - simulation.sectorBoundsM[0]) / 1000).toFixed(2)} km
           </span>
         </div>
 
         {/* Sector 3 */}
-        <div className="bg-[#0E131F] border border-[#212A3E] rounded-lg p-3.5">
-          <span className="text-[10px] font-mono uppercase text-[#64748B] block">
+        <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-4 shadow-xl">
+          <span className="text-[10px] font-mono font-bold tracking-wider uppercase text-[#64748B] block">
             SECTOR 3
           </span>
-          <div className="text-xl sm:text-2xl font-bold text-[#FFB703] mono mt-0.5">
+          <div className="text-2xl font-black text-[#D946EF] mono tabular mt-1">
             {simulation.sectorTimes[2].toFixed(3)}s
           </div>
-          <span className="text-[11px] text-[#64748B] mono">
+          <span className="text-[11px] text-[#64748B] mono mt-1.5 block">
             {((circuit.lapLengthM - simulation.sectorBoundsM[1]) / 1000).toFixed(2)} km
           </span>
         </div>
       </div>
 
-      {/* Physics & Vehicle Configuration Tuner */}
-      <div className="bg-[#0E131F] border border-[#212A3E] rounded-lg p-4">
+      {/* 2. Precision Vehicle Calibration Deck */}
+      <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-3.5 shadow-xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-[#E10600]" />
-            <span className="text-xs font-bold uppercase tracking-wider text-white">
-              VEHICLE SETUP CONTROLS
+            <Sliders className="w-3.5 h-3.5 text-[#E10600]" />
+            <span className="text-xs font-black uppercase tracking-wider text-white mono">
+              VEHICLE CALIBRATION DECK
             </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-6 text-xs mono">
             {/* Tyre Compound Selector */}
             <div className="flex items-center gap-2">
-              <span className="text-[#64748B]">COMPOUND:</span>
+              <span className="text-[#64748B] font-bold text-[10px]">COMPOUND:</span>
               <div className="flex items-center gap-1">
                 {(['soft', 'medium', 'hard', 'inter', 'wet'] as const).map((c) => {
                   const comp = COMPOUNDS[c];
@@ -158,10 +159,10 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
                     <button
                       key={c}
                       onClick={() => setCompound(c)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase transition-all ${
+                      className={`px-2 py-0.5 rounded text-[10px] font-black uppercase transition-all ${
                         isSel
-                          ? 'text-black shadow-sm'
-                          : 'bg-[#141A29] text-[#94A3B8] hover:text-white border border-[#212A3E]'
+                          ? 'text-black shadow-xs font-black'
+                          : 'bg-[#101524] text-[#94A3B8] hover:text-white border border-[#1A2336]'
                       }`}
                       style={{
                         backgroundColor: isSel ? comp.color : undefined,
@@ -176,30 +177,30 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
 
             {/* Fuel Trim Mode */}
             <div className="flex items-center gap-2">
-              <span className="text-[#64748B]">FUEL LOAD:</span>
-              <div className="flex items-center bg-[#141A29] rounded p-0.5 border border-[#212A3E]">
+              <span className="text-[#64748B] font-bold text-[10px]">FUEL LOAD:</span>
+              <div className="flex items-center bg-[#07090E] rounded p-0.5 border border-[#1A2336]">
                 <button
                   onClick={() => setTrim('qualifying')}
-                  className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                    trim === 'qualifying' ? 'bg-[#E10600] text-white' : 'text-[#94A3B8]'
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                    trim === 'qualifying' ? 'bg-[#E10600] text-white' : 'text-[#64748B] hover:text-[#94A3B8]'
                   }`}
                 >
                   QUALI (5kg)
                 </button>
                 <button
                   onClick={() => setTrim('race')}
-                  className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                    trim === 'race' ? 'bg-[#00F0FF] text-black' : 'text-[#94A3B8]'
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                    trim === 'race' ? 'bg-[#00F0FF] text-black' : 'text-[#64748B] hover:text-[#94A3B8]'
                   }`}
                 >
-                  RACE START (105kg)
+                  RACE (105kg)
                 </button>
               </div>
             </div>
 
             {/* Aero Trim Slider */}
             <div className="flex items-center gap-2">
-              <span className="text-[#64748B]">AERO TRIM:</span>
+              <span className="text-[#64748B] font-bold text-[10px]">AERO TRIM:</span>
               <input
                 type="range"
                 min={-10}
@@ -207,9 +208,9 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
                 step={2}
                 value={aeroOffset}
                 onChange={(e) => setAeroOffset(parseInt(e.target.value))}
-                className="w-20 accent-[#E10600] cursor-pointer"
+                className="w-20 accent-[#E10600] cursor-pointer h-1 bg-[#1A2336] rounded"
               />
-              <span className="w-10 text-white font-bold text-right">
+              <span className="w-10 text-white font-bold text-right tabular text-[11px]">
                 {aeroOffset > 0 ? `+${aeroOffset}%` : `${aeroOffset}%`}
               </span>
             </div>
@@ -217,10 +218,10 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
         </div>
       </div>
 
-      {/* Main Dual Layout: GPS Map & Telemetry Traces */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* 3. Main Dual Layout: GPS Map & Telemetry Traces */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left: GPS Track Map (5 cols) */}
-        <div className="lg:col-span-5">
+        <div className="lg:col-span-5 space-y-4">
           <TrackMap
             circuit={circuit}
             activeDistanceM={hoverDistM}
@@ -228,33 +229,33 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
             simulation={simulation}
           />
 
-          {/* ERS Energy Status Card */}
-          <div className="bg-[#0E131F] border border-[#212A3E] rounded-lg p-4 mt-4 text-xs mono">
-            <div className="flex items-center justify-between border-b border-[#212A3E] pb-2 mb-2">
-              <span className="font-bold text-white flex items-center gap-1.5">
+          {/* ERS Energy Telemetry Module */}
+          <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-3.5 shadow-xl text-xs mono">
+            <div className="flex items-center justify-between border-b border-[#1A2336] pb-2 mb-2">
+              <span className="font-bold text-white flex items-center gap-1.5 text-xs">
                 <Battery className="w-3.5 h-3.5 text-[#FF7A00]" />
                 HYBRID ERS ENERGY TELEMETRY
               </span>
-              <span className="text-[#FF7A00]">
+              <span className="text-[10px] text-[#FF7A00] font-bold">
                 {era === '2025' ? '4.0 MJ BUDGET' : '5.4 MJ STORE (SOC LIMITED)'}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-2">
               <div>
-                <span className="text-[#64748B] block text-[10px]">DEPLOYED</span>
-                <span className="text-white font-bold">
+                <span className="text-[#64748B] block text-[9px] uppercase font-bold">DEPLOYED</span>
+                <span className="text-white font-bold tabular">
                   {(simulation.ers.deployedJ / 1e6).toFixed(2)} MJ
                 </span>
               </div>
               <div>
-                <span className="text-[#64748B] block text-[10px]">HARVESTED</span>
-                <span className="text-[#00E676] font-bold">
+                <span className="text-[#64748B] block text-[9px] uppercase font-bold">HARVESTED</span>
+                <span className="text-[#00E676] font-bold tabular">
                   {(simulation.ers.harvestedJ / 1e6).toFixed(2)} MJ
                 </span>
               </div>
               <div>
-                <span className="text-[#64748B] block text-[10px]">CLIPPED DIST</span>
-                <span className="text-[#FF7A00] font-bold">
+                <span className="text-[#64748B] block text-[9px] uppercase font-bold">CLIPPED DIST</span>
+                <span className="text-[#FF7A00] font-bold tabular">
                   {simulation.ers.clipDistanceM.toFixed(0)} m
                 </span>
               </div>

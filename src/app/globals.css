@@ -2,12 +2,12 @@
 
 @layer base {
   :root {
-    --bg-page: #080A0F;
-    --bg-surface: #0E131F;
-    --bg-card: #141A29;
-    --border-color: #212A3E;
-    --border-highlight: #334155;
-    --text-primary: #F1F5F9;
+    --bg-page: #06080C;
+    --bg-surface: #0B0F19;
+    --bg-card: #101522;
+    --border-color: #1A2336;
+    --border-highlight: #2A3854;
+    --text-primary: #F8FAFC;
     --text-secondary: #94A3B8;
     --text-muted: #64748B;
     --f1-red: #E10600;
@@ -23,23 +23,24 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
+    letter-spacing: -0.01em;
   }
 }
 
 /* Custom scrollbars for telemetry panes */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #0E131F;
+  background: #06080C;
 }
 ::-webkit-scrollbar-thumb {
-  background: #212A3E;
+  background: #1A2336;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #2A3854;
 }
 
 .mono {

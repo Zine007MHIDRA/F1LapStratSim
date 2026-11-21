@@ -3,7 +3,7 @@
 import React from 'react';
 import { CIRCUITS_LIST } from '../data/circuits';
 import { CircuitData } from '../engine/types';
-import { Gauge, Sliders, MapPin, Zap, Flag, Activity } from 'lucide-react';
+import { Gauge, Sliders, MapPin, Zap, Activity } from 'lucide-react';
 
 interface HeaderProps {
   currentCircuit: CircuitData;
@@ -23,16 +23,18 @@ export default function Header({
   onSelectTab,
 }: HeaderProps) {
   return (
-    <header className="border-b border-[#212A3E] bg-[#0E131F]/95 backdrop-blur sticky top-0 z-50">
+    <header className="border-b border-[#1A2336] bg-[#080B12]/95 backdrop-blur-md sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center justify-between py-3 gap-3">
+        <div className="flex flex-col md:flex-row items-center justify-between py-2.5 gap-3">
           {/* Logo & Circuit Title */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-6 bg-[#E10600] rounded-sm inline-block"></span>
-              <span className="text-xl font-bold tracking-wider text-white">F1SIM</span>
-              <span className="text-xs px-2 py-0.5 rounded bg-[#212A3E] text-[#00F0FF] font-mono font-medium">
-                24/7 EDGE
+              <span className="w-2 h-5 bg-[#E10600] rounded-xs inline-block" />
+              <span className="text-base font-black tracking-widest text-white mono">
+                F1 // PIT-WALL
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-[#101524] text-[#94A3B8] border border-[#1A2336] mono font-bold">
+                TELEMETRY
               </span>
             </div>
 
@@ -42,7 +44,7 @@ export default function Header({
                 aria-label="Select Grand Prix Circuit"
                 value={currentCircuit.id}
                 onChange={(e) => onSelectCircuit(e.target.value)}
-                className="bg-[#141A29] text-[#F1F5F9] border border-[#212A3E] rounded-md px-3 py-1.5 text-sm font-medium focus:outline-none focus:border-[#E10600] cursor-pointer hover:bg-[#1A2236] transition-colors"
+                className="bg-[#101524] text-white border border-[#1A2336] rounded-md px-3 py-1 text-xs font-bold focus:outline-none focus:border-[#E10600] cursor-pointer hover:bg-[#151C30] transition-colors mono"
               >
                 {CIRCUITS_LIST.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -55,14 +57,14 @@ export default function Header({
 
           {/* Era Toggle (2025 vs 2026) */}
           <div className="flex items-center gap-3">
-            <div className="flex items-center bg-[#141A29] p-1 rounded-md border border-[#212A3E]">
+            <div className="flex items-center bg-[#07090E] p-0.5 rounded-md border border-[#1A2336]">
               <button
                 type="button"
                 onClick={() => onSelectEra('2025')}
-                className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
+                className={`px-3 py-1 text-xs font-bold rounded transition-all mono ${
                   era === '2025'
-                    ? 'bg-[#E10600] text-white shadow-sm'
-                    : 'text-[#94A3B8] hover:text-white'
+                    ? 'bg-[#E10600] text-white shadow-xs'
+                    : 'text-[#64748B] hover:text-[#94A3B8]'
                 }`}
               >
                 2025 REGS
@@ -70,10 +72,10 @@ export default function Header({
               <button
                 type="button"
                 onClick={() => onSelectEra('2026')}
-                className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
+                className={`px-3 py-1 text-xs font-bold rounded transition-all mono ${
                   era === '2026'
-                    ? 'bg-[#00F0FF] text-[#080A0F] font-bold shadow-sm'
-                    : 'text-[#94A3B8] hover:text-white'
+                    ? 'bg-[#00F0FF] text-[#06080C] shadow-xs'
+                    : 'text-[#64748B] hover:text-[#94A3B8]'
                 }`}
               >
                 2026 ACTIVE AERO
@@ -81,18 +83,18 @@ export default function Header({
             </div>
 
             {/* Quick Track Telemetry Badges */}
-            <div className="hidden lg:flex items-center gap-3 text-xs text-[#94A3B8] mono border-l border-[#212A3E] pl-4">
-              <div title="Track & Air Temperature">
+            <div className="hidden lg:flex items-center gap-3 text-xs text-[#94A3B8] mono border-l border-[#1A2336] pl-4">
+              <div title="Track Temperature">
                 <span className="text-[#64748B]">T_TRACK: </span>
-                <span className="text-white font-medium">{currentCircuit.trackTempC}°C</span>
+                <span className="text-white font-bold">{currentCircuit.trackTempC}°C</span>
               </div>
-              <div title="Track Altitude Above Sea Level">
+              <div title="Track Altitude">
                 <span className="text-[#64748B]">ALT: </span>
-                <span className="text-white font-medium">{currentCircuit.altitudeM}m</span>
+                <span className="text-white font-bold">{currentCircuit.altitudeM}m</span>
               </div>
-              <div title="Pole Driver Benchmark">
+              <div title="Pole Benchmark">
                 <span className="text-[#64748B]">POLE: </span>
-                <span className="text-[#00F0FF] font-medium">
+                <span className="text-[#00F0FF] font-bold">
                   {currentCircuit.poleDriver} {currentCircuit.poleLapTime.toFixed(3)}s
                 </span>
               </div>
@@ -101,7 +103,7 @@ export default function Header({
         </div>
 
         {/* Navigation Tabs */}
-        <nav className="flex space-x-2 md:space-x-6 border-t border-[#212A3E]/60 pt-2 pb-1 overflow-x-auto" aria-label="Simulator Navigation">
+        <nav className="flex space-x-1 md:space-x-4 border-t border-[#1A2336]/60 pt-1.5 pb-0.5 overflow-x-auto" aria-label="Simulator Navigation">
           {[
             { id: 'simulator', label: 'SIMULATOR', icon: Gauge },
             { id: 'telemetry', label: 'TELEMETRY COMPARISON', icon: Activity },
@@ -116,13 +118,13 @@ export default function Header({
                 key={tab.id}
                 type="button"
                 onClick={() => onSelectTab(tab.id as any)}
-                className={`flex items-center gap-2 py-2 px-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 py-1.5 px-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all whitespace-nowrap mono ${
                   isActive
-                    ? 'border-[#E10600] text-white bg-[#141A29]/50 rounded-t'
-                    : 'border-transparent text-[#94A3B8] hover:text-white hover:border-[#334155]'
+                    ? 'border-[#E10600] text-white bg-[#101524]/60 rounded-t'
+                    : 'border-transparent text-[#64748B] hover:text-[#94A3B8] hover:border-[#2A3854]'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-[#E10600]' : 'text-[#64748B]'}`} />
+                <Icon className={`w-3 h-3 ${isActive ? 'text-[#E10600]' : 'text-[#64748B]'}`} />
                 {tab.label}
               </button>
             );

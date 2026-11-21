@@ -10,20 +10,13 @@ import {
   getDriverSessionStats,
   DriverProfile,
   DriverSessionStats,
-  formatSecondsToLap,
 } from '../data/driverSessions';
 import {
   Play,
   Pause,
   RotateCcw,
-  Gauge,
-  Flag,
   Radio,
-  Layers,
-  ChevronDown,
   Sparkles,
-  Zap,
-  Clock,
   Compass,
 } from 'lucide-react';
 
@@ -35,7 +28,7 @@ interface TrackMapProps {
   className?: string;
 }
 
-export type TrackViewMode = 'broadcast' | 'heatmap' | 'sectors' | 'drs';
+export type TrackViewMode = 'broadcast' | 'heatmap' | 'drs' | 'sectors';
 
 export default function TrackMap({
   circuit,
@@ -194,13 +187,12 @@ export default function TrackMap({
     const centroidX = sumX / xs.length;
     const centroidY = sumY / xs.length;
 
-    const pad = Math.max(maxX - minX, maxY - minY) * 0.12;
+    const pad = Math.max(maxX - minX, maxY - minY) * 0.10;
     const width = maxX - minX + 2 * pad;
     const height = maxY - minY + 2 * pad;
     const offsetX = minX - pad;
     const offsetY = minY - pad;
 
-    // Helper: Map raw coordinates to SVG screen coordinates
     const toSvg = (rx: number, ry: number) => ({
       x: rx - offsetX,
       y: maxY + pad - ry,
@@ -225,13 +217,11 @@ export default function TrackMap({
       const spd = speeds[i] || 200;
       const dist = dists[i] || 0;
 
-      // Color mapping for speed heatmap
       let spdColor = '#00F0FF';
       if (spd < 130) spdColor = '#E10600';
       else if (spd < 220) spdColor = '#FFB703';
       else if (spd < 280) spdColor = '#00E676';
 
-      // Sector identification
       const sector = dist < s1Cut ? 1 : dist < s2Cut ? 2 : 3;
 
       segs.push({
@@ -244,7 +234,7 @@ export default function TrackMap({
     }
     fullD += ' Z';
 
-    // 2. Start / Finish Angled Dashed Line (at distance 0)
+    // 2. Start / Finish Line at distance 0
     let sfLine: { x1: number; y1: number; x2: number; y2: number } | null = null;
     if (xs.length > 1) {
       const p0 = toSvg(xs[0], ys[0]);
@@ -254,8 +244,7 @@ export default function TrackMap({
       const len = Math.hypot(dx, dy) || 1;
       const nx = -dy / len;
       const ny = dx / len;
-      const halfW = 20;
-      // Slight 15 degree forward angle
+      const halfW = 22;
       const forwardSkew = 5;
       sfLine = {
         x1: p0.x - nx * halfW - (dx / len) * forwardSkew,
@@ -266,7 +255,6 @@ export default function TrackMap({
     }
 
     // 3. Realistic Pit Lane Bypass Geometry
-    // Follows the main straight near the Start/Finish line, offset toward track centroid
     let pitPathD = '';
     const pitWindowDist = Math.min(420, lapLength * 0.12);
     const pitPoints: { x: number; y: number; dist: number }[] = [];
@@ -281,7 +269,6 @@ export default function TrackMap({
         let nx = -dy / len;
         let ny = dx / len;
 
-        // Ensure normal points inward toward track centroid
         const toCentroidX = centroidX - xs[i];
         const toCentroidY = centroidY - ys[i];
         if (nx * toCentroidX + ny * toCentroidY < 0) {
@@ -289,8 +276,7 @@ export default function TrackMap({
           ny = -ny;
         }
 
-        // Taper blend in at pit entry and blend out at pit exit
-        let offsetMag = 22.0; // 22 meters offset
+        let offsetMag = 22.0;
         if (d > lapLength - pitWindowDist) {
           const entryFrac = (d - (lapLength - pitWindowDist)) / 120;
           offsetMag = Math.min(22.0, Math.max(0, entryFrac * 22.0));
@@ -306,7 +292,6 @@ export default function TrackMap({
       }
     }
 
-    // Sort pit points chronologically from entry (near end of lap) to exit (near start of lap)
     pitPoints.sort((a, b) => {
       const orderA = a.dist > lapLength - pitWindowDist ? a.dist - lapLength : a.dist;
       const orderB = b.dist > lapLength - pitWindowDist ? b.dist - lapLength : b.dist;
@@ -320,7 +305,7 @@ export default function TrackMap({
       }
     }
 
-    // 4. Corner apex badges & labels
+    // 4. Corner apex badges
     const corners: { name: string; number: number; x: number; y: number }[] = [];
     let cornerCount = 0;
     let runningDist = 0;
@@ -330,7 +315,6 @@ export default function TrackMap({
         cornerCount++;
         const apexDist = runningDist + seg.length * 0.5;
 
-        // Locate nearest telemetry point
         let closestIdx = 0;
         let minDiff = Infinity;
         for (let i = 0; i < dists.length; i++) {
@@ -342,7 +326,6 @@ export default function TrackMap({
         }
 
         const svgP = toSvg(xs[closestIdx], ys[closestIdx]);
-        // Push label slightly outward from track centroid
         const vx = svgP.x - (centroidX - offsetX);
         const vy = svgP.y - (maxY + pad - centroidY);
         const vLen = Math.hypot(vx, vy) || 1;
@@ -419,10 +402,10 @@ export default function TrackMap({
       };
     }
 
-    // 7. Dynamic Trailing Line for Player Car
+    // 7. Trailing Line for Player Car
     let trailD = '';
     if (car) {
-      const trailLengthM = 320; // 320 meters trailing ribbon
+      const trailLengthM = 320;
       const trailPoints: { x: number; y: number }[] = [];
       const totalN = xs.length;
 
@@ -448,7 +431,6 @@ export default function TrackMap({
     let deltaS = 0;
 
     if (ghostModeEnabled && dists && dists.length > 0) {
-      // Modulate ghost distance based on session speed multiplier
       const ghostDist = (activeDistanceM * sessionStats.speedMultiplier) % lapLength;
       let ghostClosestIdx = 0;
       let minDiff = Infinity;
@@ -472,7 +454,6 @@ export default function TrackMap({
         angle: gAngle,
       };
 
-      // Ghost trail
       const gTrailPoints: { x: number; y: number }[] = [];
       const totalN = xs.length;
       for (let stepBack = 0; stepBack < 35; stepBack++) {
@@ -489,8 +470,6 @@ export default function TrackMap({
         }
       }
 
-      // Compute live delta in seconds
-      // Approximate delta based on lap progress and driver session benchmark
       const simLapTime = simulation ? simulation.lapTime : circuit.poleLapTime;
       const progressFrac = activeDistanceM / lapLength;
       deltaS = (simLapTime - sessionStats.lapTime) * progressFrac;
@@ -515,7 +494,6 @@ export default function TrackMap({
     };
   }, [telemetry, lapLength, circuit, activeDistanceM, ghostModeEnabled, sessionStats, simulation]);
 
-  // Handle clicking on track ribbon to jump vehicle to that location
   const handleTrackClick = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
       if (!onHoverDistance) return;
@@ -523,7 +501,6 @@ export default function TrackMap({
       const clickX = ((e.clientX - rect.left) / rect.width) * viewWidth;
       const clickY = ((e.clientY - rect.top) / rect.height) * viewHeight;
 
-      // Find nearest telemetry point
       const xs = telemetry.x;
       const ys = telemetry.y;
       const dists = telemetry.distance;
@@ -532,7 +509,6 @@ export default function TrackMap({
       let nearestDist = 0;
       let minDis = Infinity;
       for (let i = 0; i < xs.length; i++) {
-        // Map to svg
         const sx = xs[i] - (viewWidth * 0.1);
         const sy = ys[i];
         const d = Math.hypot(clickX - sx, clickY - sy);
@@ -547,61 +523,53 @@ export default function TrackMap({
   );
 
   return (
-    <div className={`relative bg-[#070A0F] border border-[#1A2333] rounded-xl p-4 flex flex-col shadow-2xl overflow-hidden ${className}`}>
-      {/* Top Header & Telemetry Mode Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#1A2333]">
+    <div className={`bg-[#0B0F19] border border-[#1A2336] rounded-xl flex flex-col shadow-2xl overflow-hidden ${className}`}>
+      {/* 1. Sleek Command Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-[#1A2336]/80 bg-[#0E1321]">
         <div className="flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#00E676] animate-pulse shadow-[0_0_8px_#00E676]" />
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-black tracking-wider text-white uppercase mono">
-                GPS RACING LINE
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#131B2B] text-[#00F0FF] border border-[#212E47] mono">
-                {circuit.name.toUpperCase()}
-              </span>
-            </div>
-            <p className="text-[11px] text-[#64748B] mono">
-              {Math.round(activeDistanceM)}m / {lapLength}m • {circuit.direction}
-            </p>
-          </div>
+          <span className="w-2 h-2 rounded-full bg-[#00E676] animate-pulse shadow-[0_0_8px_#00E676]" />
+          <span className="text-xs font-black tracking-wider text-white uppercase mono">
+            CIRCUIT TELEMETRY // {circuit.name.toUpperCase()}
+          </span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#151C2C] text-[#94A3B8] border border-[#212E44] mono">
+            {Math.round(activeDistanceM)}m / {lapLength}m
+          </span>
         </div>
 
-        {/* View Mode Pills */}
-        <div className="flex items-center gap-1.5 self-start sm:self-auto bg-[#0C121E] p-1 rounded-lg border border-[#1A2333]">
+        {/* View Mode Segmented Switch */}
+        <div className="flex items-center bg-[#07090E] p-0.5 rounded-lg border border-[#1A2336]">
           {(['broadcast', 'heatmap', 'drs', 'sectors'] as const).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setViewMode(mode)}
-              className={`px-2.5 py-1 rounded text-[11px] font-bold uppercase transition-all mono ${
+              className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all mono ${
                 viewMode === mode
-                  ? 'bg-[#1E293B] text-white shadow-xs border border-[#334155]'
+                  ? 'bg-[#1E293B] text-white shadow-xs'
                   : 'text-[#64748B] hover:text-[#94A3B8]'
               }`}
             >
               {mode}
             </button>
           ))}
-
           <button
             type="button"
             onClick={() => setShowCorners(!showCorners)}
-            className={`px-2 py-1 rounded text-[11px] font-bold uppercase transition-all mono ${
+            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all mono border-l border-[#1A2336] ${
               showCorners ? 'text-[#FFB703]' : 'text-[#475569]'
             }`}
-            title="Toggle Turn Numbers (T1...)"
+            title="Toggle Turn Numbers"
           >
             Turns
           </button>
         </div>
       </div>
 
-      {/* Driver & Session Selection Bar */}
-      <div className="mt-3 pt-2 pb-2 bg-[#0C121E]/90 border border-[#1A2333] rounded-lg p-2.5 flex flex-col gap-2">
+      {/* 2. Driver & Session Selector Strip */}
+      <div className="px-4 py-2.5 bg-[#080B12] border-b border-[#1A2336]/60 flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          {/* Driver Badges */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+          {/* Driver Selection Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
             <span className="text-[10px] mono font-bold text-[#64748B] uppercase pr-1 flex items-center gap-1">
               <Radio className="w-3 h-3 text-[#FF8000]" />
               DRIVER:
@@ -613,18 +581,18 @@ export default function TrackMap({
                   key={d.id}
                   type="button"
                   onClick={() => setSelectedDriverId(d.id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-black mono uppercase transition-all ${
+                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold mono uppercase transition-all ${
                     isSelected
-                      ? 'text-white shadow-md border'
-                      : 'bg-[#131B2B] text-[#94A3B8] hover:text-white border border-[#212E47] hover:border-[#334155]'
+                      ? 'text-white shadow-xs border'
+                      : 'bg-[#101524] text-[#94A3B8] hover:text-white border border-[#1A2336]'
                   }`}
                   style={{
-                    backgroundColor: isSelected ? `${d.teamColor}25` : undefined,
+                    backgroundColor: isSelected ? `${d.teamColor}20` : undefined,
                     borderColor: isSelected ? d.teamColor : undefined,
                   }}
                 >
                   <span
-                    className="w-2 h-2 rounded-full inline-block"
+                    className="w-1.5 h-1.5 rounded-full inline-block"
                     style={{ backgroundColor: d.teamColor }}
                   />
                   <span>{d.code}</span>
@@ -637,163 +605,89 @@ export default function TrackMap({
           <button
             type="button"
             onClick={() => setGhostModeEnabled(!ghostModeEnabled)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold mono transition-all border ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold mono transition-all border ${
               ghostModeEnabled
-                ? 'bg-[#00E676]/15 text-[#00E676] border-[#00E676]/40 shadow-xs'
-                : 'bg-[#131B2B] text-[#64748B] border-[#212E47]'
+                ? 'bg-[#00E676]/10 text-[#00E676] border-[#00E676]/30'
+                : 'bg-[#101524] text-[#64748B] border-[#1A2336]'
             }`}
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            {ghostModeEnabled ? 'GHOST DUEL ON' : 'GHOST DUEL OFF'}
+            <Sparkles className="w-3 h-3" />
+            {ghostModeEnabled ? 'GHOST ON' : 'GHOST OFF'}
           </button>
         </div>
 
-        {/* Session Type & Benchmark Stats Row */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#1A2333]/70 text-xs mono">
-          {/* Session Selector */}
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-[#64748B] font-bold">SESSION:</span>
-            <div className="flex items-center bg-[#131B2B] rounded p-0.5 border border-[#212E47]">
-              {SESSIONS_LIST.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setSelectedSession(s.id)}
-                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
-                    selectedSession === s.id
-                      ? 'bg-[#1E293B] text-white shadow-xs'
-                      : 'text-[#64748B] hover:text-[#94A3B8]'
-                  }`}
-                >
-                  {s.label.split(' ')[0]}
-                </button>
-              ))}
-            </div>
+        {/* Driver Session Details & Benchmark Readout */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1.5 text-xs mono text-[#94A3B8]">
+          <div className="flex items-center gap-1">
+            {SESSIONS_LIST.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setSelectedSession(s.id)}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                  selectedSession === s.id
+                    ? 'bg-[#1E293B] text-white'
+                    : 'text-[#64748B] hover:text-[#94A3B8]'
+                }`}
+              >
+                {s.label.split(' ')[0]}
+              </button>
+            ))}
           </div>
 
-          {/* Authentic Session Stats Telemetry Pill */}
-          <div className="flex flex-wrap items-center gap-3 text-[11px] text-[#94A3B8]">
-            <div>
-              <span className="text-[#64748B] text-[10px] block">LAP TIME</span>
-              <span className="text-white font-bold">{sessionStats.lapTimeStr}</span>
-            </div>
-            <div className="border-l border-[#1A2333] pl-3">
-              <span className="text-[#64748B] text-[10px] block">DELTA TO POLE</span>
-              <span className={sessionStats.deltaToPole <= 0 ? 'text-[#00E676] font-bold' : 'text-[#FFB703] font-bold'}>
-                {sessionStats.deltaToPole <= 0 ? 'POLE' : `+${sessionStats.deltaToPole.toFixed(3)}s`}
+          <div className="flex items-center gap-3 text-[11px]">
+            <span>
+              <strong className="text-white font-bold">{sessionStats.lapTimeStr}</strong>{' '}
+              <span className={sessionStats.deltaToPole <= 0 ? 'text-[#00E676]' : 'text-[#FFB703]'}>
+                ({sessionStats.deltaToPole <= 0 ? 'POLE' : `+${sessionStats.deltaToPole.toFixed(3)}s`})
               </span>
-            </div>
-            <div className="border-l border-[#1A2333] pl-3">
-              <span className="text-[#64748B] text-[10px] block">SPEED TRAP</span>
-              <span className="text-[#00F0FF] font-bold">{sessionStats.topSpeedKmh} km/h</span>
-            </div>
-            <div className="border-l border-[#1A2333] pl-3">
-              <span className="text-[#64748B] text-[10px] block">TYRE / FUEL</span>
-              <span className="text-white font-medium">
-                {sessionStats.compound.toUpperCase()} • {sessionStats.fuelKg}kg
-              </span>
-            </div>
+            </span>
+            <span className="text-[#1A2336]">|</span>
+            <span>
+              SPEED TRAP: <strong className="text-[#00F0FF]">{sessionStats.topSpeedKmh}</strong> km/h
+            </span>
+            <span className="text-[#1A2336]">|</span>
+            <span className="text-[#64748B]">
+              {sessionStats.compound.toUpperCase()} • {sessionStats.fuelKg}kg
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Main SVG Track Map Canvas */}
-      <div className="relative w-full aspect-16/10 max-h-[500px] flex items-center justify-center overflow-hidden my-3 rounded-lg bg-[#05070B] border border-[#131B2A]">
-        {/* Engineering Radar / Grid Overlay */}
+      {/* 3. Full-Bleed Circuit Canvas (No Obstructing Boxes!) */}
+      <div className="relative w-full aspect-16/11 max-h-[460px] flex items-center justify-center overflow-hidden bg-[#05070B]">
+        {/* Subtle CAD Radar Grid */}
         <div
-          className="absolute inset-0 pointer-events-none opacity-20"
+          className="absolute inset-0 pointer-events-none opacity-15"
           style={{
             backgroundImage: `
               linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
               linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px)
             `,
-            backgroundSize: '40px 40px',
+            backgroundSize: '36px 36px',
           }}
         />
 
-        {/* Live Cockpit HUD Overlay */}
-        <div className="absolute top-3 left-3 bg-[#080B12]/90 border border-[#212E47] rounded-lg p-2.5 z-10 mono text-xs pointer-events-none backdrop-blur-md shadow-xl flex items-center gap-3">
-          <div>
-            <span className="text-[#64748B] text-[9px] block font-bold">SPEED</span>
-            <span className="text-white font-black text-lg leading-tight">
-              {currentMetrics.speed}{' '}
-              <span className="text-[10px] font-normal text-[#94A3B8]">km/h</span>
-            </span>
-          </div>
-
-          <div className="border-l border-[#1A2333] pl-3">
-            <span className="text-[#64748B] text-[9px] block font-bold">GEAR</span>
-            <span className="text-[#00F0FF] font-black text-lg leading-tight">
-              G{currentMetrics.gear}
-            </span>
-          </div>
-
-          {/* Throttle & Brake Bars */}
-          <div className="border-l border-[#1A2333] pl-3 flex items-center gap-2">
-            <div className="text-center">
-              <span className="text-[8px] text-[#64748B] block font-bold">THR</span>
-              <div className="w-2.5 h-7 bg-[#131B2B] rounded-xs overflow-hidden flex flex-col justify-end border border-[#212E47]">
-                <div
-                  className="w-full bg-[#00E676] transition-all duration-75"
-                  style={{ height: `${currentMetrics.throttle}%` }}
-                />
-              </div>
-            </div>
-            <div className="text-center">
-              <span className="text-[8px] text-[#64748B] block font-bold">BRK</span>
-              <div className="w-2.5 h-7 bg-[#131B2B] rounded-xs overflow-hidden flex flex-col justify-end border border-[#212E47]">
-                <div
-                  className="w-full bg-[#E10600] transition-all duration-75"
-                  style={{ height: `${currentMetrics.brake}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Ghost Delta Pill (When Ghost Duel Active) */}
-          {ghostModeEnabled && (
-            <div className="border-l border-[#1A2333] pl-3">
-              <span className="text-[#64748B] text-[9px] block font-bold">VS GHOST ({activeDriver.code})</span>
-              <span
-                className={`font-black text-sm leading-tight px-1.5 py-0.5 rounded ${
-                  ghostDeltaS <= 0
-                    ? 'text-[#00E676] bg-[#00E676]/10'
-                    : 'text-[#E10600] bg-[#E10600]/10'
-                }`}
-              >
-                {ghostDeltaS <= 0 ? '▲ ' : '▼ '}
-                {Math.abs(ghostDeltaS).toFixed(3)}s
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Compass & North Indicator */}
-        <div className="absolute top-3 right-3 bg-[#080B12]/80 border border-[#212E47] rounded-md px-2 py-1 z-10 mono text-[10px] pointer-events-none flex items-center gap-1 text-[#94A3B8]">
-          <Compass className="w-3.5 h-3.5 text-[#00F0FF]" />
+        {/* Minimal North Compass Indicator */}
+        <div className="absolute top-3 right-3 bg-[#0B0F19]/80 border border-[#1A2336] rounded px-2 py-0.5 z-10 mono text-[9px] pointer-events-none flex items-center gap-1 text-[#94A3B8]">
+          <Compass className="w-3 h-3 text-[#00F0FF]" />
           <span className="font-bold text-white">N</span>
         </div>
 
-        {/* SVG Track Rendering Engine */}
+        {/* SVG Track Engine */}
         <svg
           viewBox={viewBox}
           className="w-full h-full cursor-crosshair transition-transform select-none"
           preserveAspectRatio="xMidYMid meet"
           onClick={handleTrackClick}
         >
-          {/* Subtle Grid Definition */}
           <defs>
             <linearGradient id="carTrailGrad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor={activeDriver.teamColor} stopOpacity="0.0" />
               <stop offset="100%" stopColor={activeDriver.teamColor} stopOpacity="0.9" />
             </linearGradient>
-            <linearGradient id="ghostTrailGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor={activeDriver.teamColor} stopOpacity="0.0" />
-              <stop offset="100%" stopColor={activeDriver.teamColor} stopOpacity="0.4" />
-            </linearGradient>
-            {/* Glow Filter */}
             <filter id="beaconGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur" />
               <feMerge>
                 <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
@@ -801,45 +695,44 @@ export default function TrackMap({
             </filter>
           </defs>
 
-          {/* 1. Track Outer Kerb Boundary / Runoff Silhouette */}
+          {/* Outer Kerb / Runoff Silhouette */}
           <path
             d={pathData}
             fill="none"
-            stroke="#161F2E"
+            stroke="#121724"
             strokeWidth="32"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
 
-          {/* 2. Wide Solid Asphalt Roadway Ribbon (Matching User Reference Image) */}
+          {/* Wide Solid Asphalt Roadway Ribbon */}
           <path
             d={pathData}
             fill="none"
-            stroke="#364153"
+            stroke="#2E384D"
             strokeWidth="22"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
 
-          {/* Inner Asphalt Texture Accent */}
+          {/* Inner Asphalt Texture Line */}
           <path
             d={pathData}
             fill="none"
-            stroke="#3F4D62"
+            stroke="#39455E"
             strokeWidth="14"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeOpacity="0.5"
+            strokeOpacity="0.4"
           />
 
-          {/* 3. Dedicated Pit Lane Bypass Roadway */}
+          {/* Pit Lane Roadway */}
           {pitLanePath && (
             <g id="pitLane">
-              {/* Pit Lane Base Road */}
               <path
                 d={pitLanePath}
                 fill="none"
-                stroke="#252E3E"
+                stroke="#1E2536"
                 strokeWidth="15"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -847,24 +740,23 @@ export default function TrackMap({
               <path
                 d={pitLanePath}
                 fill="none"
-                stroke="#333F53"
+                stroke="#2A354A"
                 strokeWidth="9"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              {/* Pit Speed Limiter (80 km/h) Dashed Guideline */}
               <path
                 d={pitLanePath}
                 fill="none"
-                stroke="#64748B"
-                strokeWidth="2"
-                strokeDasharray="8 6"
+                stroke="#475569"
+                strokeWidth="1.5"
+                strokeDasharray="6 5"
                 strokeOpacity="0.6"
               />
             </g>
           )}
 
-          {/* 4. Start / Finish Angled Dashed Line (//) */}
+          {/* Start / Finish Line (//) */}
           {startFinishLine && (
             <g id="startFinishLine">
               <line
@@ -873,14 +765,14 @@ export default function TrackMap({
                 x2={startFinishLine.x2}
                 y2={startFinishLine.y2}
                 stroke="#FFFFFF"
-                strokeWidth="4"
+                strokeWidth="3.5"
                 strokeDasharray="6 3"
                 strokeLinecap="square"
               />
             </g>
           )}
 
-          {/* 5. DRS Zones Overlay */}
+          {/* DRS Zones */}
           {viewMode === 'drs' &&
             drsSegments.map((drsD, i) => (
               <path
@@ -892,11 +784,11 @@ export default function TrackMap({
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 className="animate-pulse"
-                strokeOpacity="0.8"
+                strokeOpacity="0.85"
               />
             ))}
 
-          {/* 6. Sectors Overlay */}
+          {/* Sectors */}
           {viewMode === 'sectors' &&
             segmentsPath.map((seg, idx) => (
               <path
@@ -915,7 +807,7 @@ export default function TrackMap({
               />
             ))}
 
-          {/* 7. Speed Heatmap Mode */}
+          {/* Speed Heatmap */}
           {viewMode === 'heatmap' &&
             segmentsPath.map((seg, idx) => (
               <path
@@ -930,41 +822,41 @@ export default function TrackMap({
               />
             ))}
 
-          {/* 8. Ghost Car Trailing Line */}
+          {/* Ghost Trailing Line */}
           {ghostModeEnabled && ghostTrailPath && (
             <path
               d={ghostTrailPath}
               fill="none"
               stroke={activeDriver.teamColor}
-              strokeWidth="4"
+              strokeWidth="3.5"
               strokeLinecap="round"
               strokeDasharray="6 4"
               strokeOpacity="0.4"
             />
           )}
 
-          {/* 9. Player Active Car Trailing Line */}
+          {/* Player Trailing Line */}
           {carTrailPath && (
             <path
               d={carTrailPath}
               fill="none"
               stroke={activeDriver.teamColor}
-              strokeWidth="4.5"
+              strokeWidth="4"
               strokeLinecap="round"
-              strokeOpacity="0.85"
+              strokeOpacity="0.9"
             />
           )}
 
-          {/* 10. Corner Apex Labels (T1, T2...) */}
+          {/* Corner Apex Badges (T1, T2...) */}
           {showCorners &&
             cornerLabels.map((c) => (
               <g key={`corner-${c.number}`} transform={`translate(${c.x}, ${c.y})`}>
-                <circle r="9" fill="#0C121E" stroke="#334155" strokeWidth="1.5" />
+                <circle r="8" fill="#0C121E" stroke="#2A3854" strokeWidth="1" />
                 <text
                   textAnchor="middle"
                   dominantBaseline="central"
                   fill="#94A3B8"
-                  fontSize="8.5"
+                  fontSize="7.5"
                   fontWeight="bold"
                   fontFamily="monospace"
                 >
@@ -973,82 +865,35 @@ export default function TrackMap({
               </g>
             ))}
 
-          {/* 11. Ghost Car Beacon & Label */}
+          {/* Ghost Car Beacon */}
           {ghostModeEnabled && ghostCoord && (
             <g transform={`translate(${ghostCoord.x}, ${ghostCoord.y})`}>
-              {/* Outer Ghost Ring */}
               <circle
-                r="18"
+                r="16"
                 fill={activeDriver.teamColor}
-                fillOpacity="0.12"
+                fillOpacity="0.10"
                 stroke={activeDriver.teamColor}
                 strokeWidth="1.5"
                 strokeDasharray="4 3"
               />
               <circle
-                r="7"
+                r="6.5"
                 fill={activeDriver.teamColor}
                 fillOpacity="0.6"
                 stroke="#FFFFFF"
                 strokeWidth="1.5"
               />
-              {/* Ghost Driver Pill */}
-              <rect
-                x="-24"
-                y="-27"
-                width="48"
-                height="14"
-                rx="3"
-                fill="#080B12"
-                fillOpacity="0.85"
-                stroke={activeDriver.teamColor}
-                strokeWidth="1"
-              />
-              <text
-                x="0"
-                y="-17"
-                textAnchor="middle"
-                fill="#FFFFFF"
-                fontSize="8"
-                fontWeight="bold"
-                fontFamily="monospace"
-              >
-                GHOST: {activeDriver.code}
-              </text>
-            </g>
-          )}
-
-          {/* 12. Active Vehicle Marker & Broadcast Tag (NOR) */}
-          {carCoord && (
-            <g transform={`translate(${carCoord.x}, ${carCoord.y})`}>
-              {/* Radiant Pulse Halo */}
-              <circle
-                r="16"
-                fill={activeDriver.teamColor}
-                fillOpacity="0.25"
-                filter="url(#beaconGlow)"
-              />
-              {/* Solid Inner Team Color Beacon */}
-              <circle
-                r="8.5"
-                fill={activeDriver.teamColor}
-                stroke="#FFFFFF"
-                strokeWidth="2.5"
-                className="transition-transform"
-              />
-
-              {/* Driver 3-Letter Tag Pill (Exactly like user reference NOR) */}
               <g transform="translate(0, -18)">
                 <rect
-                  x="-18"
-                  y="-11"
-                  width="36"
-                  height="15"
-                  rx="3"
+                  x="-22"
+                  y="-9"
+                  width="44"
+                  height="13"
+                  rx="2"
                   fill="#080B12"
-                  fillOpacity="0.92"
-                  stroke="#FFFFFF"
-                  strokeWidth="1"
+                  fillOpacity="0.85"
+                  stroke={activeDriver.teamColor}
+                  strokeWidth="0.8"
                 />
                 <text
                   x="0"
@@ -1056,10 +901,52 @@ export default function TrackMap({
                   textAnchor="middle"
                   dominantBaseline="central"
                   fill="#FFFFFF"
-                  fontSize="9.5"
+                  fontSize="7.5"
+                  fontWeight="bold"
+                  fontFamily="monospace"
+                >
+                  {activeDriver.code}
+                </text>
+              </g>
+            </g>
+          )}
+
+          {/* Active Car Marker & NOR Tag */}
+          {carCoord && (
+            <g transform={`translate(${carCoord.x}, ${carCoord.y})`}>
+              <circle
+                r="15"
+                fill={activeDriver.teamColor}
+                fillOpacity="0.25"
+                filter="url(#beaconGlow)"
+              />
+              <circle
+                r="8"
+                fill={activeDriver.teamColor}
+                stroke="#FFFFFF"
+                strokeWidth="2.5"
+              />
+              <g transform="translate(0, -17)">
+                <rect
+                  x="-16"
+                  y="-9"
+                  width="32"
+                  height="14"
+                  rx="2.5"
+                  fill="#080B12"
+                  fillOpacity="0.92"
+                  stroke="#FFFFFF"
+                  strokeWidth="0.8"
+                />
+                <text
+                  x="0"
+                  y="0"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fill="#FFFFFF"
+                  fontSize="8.5"
                   fontWeight="900"
                   fontFamily="monospace"
-                  letterSpacing="0.5"
                 >
                   {activeDriver.code}
                 </text>
@@ -1069,11 +956,68 @@ export default function TrackMap({
         </svg>
       </div>
 
-      {/* Playback Controls & Distance Scrubber Bar */}
-      <div className="bg-[#0C121E] border border-[#1A2333] rounded-lg p-3 flex flex-col gap-2.5">
-        {/* Scrubber Range */}
+      {/* 4. Integrated Lower Telemetry Strip (Replaces the Clunky Old Floating HUD!) */}
+      <div className="px-4 py-2 bg-[#0E1321] border-t border-b border-[#1A2336] flex flex-wrap items-center justify-between gap-3 text-xs mono">
+        <div className="flex items-center gap-4">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] text-[#64748B] font-bold">SPEED</span>
+            <span className="text-white font-black text-base tabular leading-none">
+              {currentMetrics.speed}
+            </span>
+            <span className="text-[10px] text-[#64748B]">km/h</span>
+          </div>
+
+          <div className="border-l border-[#1A2336] pl-3 flex items-baseline gap-1.5">
+            <span className="text-[10px] text-[#64748B] font-bold">GEAR</span>
+            <span className="text-[#00F0FF] font-black text-base leading-none">
+              G{currentMetrics.gear}
+            </span>
+          </div>
+
+          <div className="border-l border-[#1A2336] pl-3 flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] text-[#64748B] font-bold">THR</span>
+              <div className="w-12 h-2.5 bg-[#141B2A] rounded-xs overflow-hidden border border-[#1A2336]">
+                <div
+                  className="h-full bg-[#00E676] transition-all duration-75"
+                  style={{ width: `${currentMetrics.throttle}%` }}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] text-[#64748B] font-bold">BRK</span>
+              <div className="w-8 h-2.5 bg-[#141B2A] rounded-xs overflow-hidden border border-[#1A2336]">
+                <div
+                  className="h-full bg-[#E10600] transition-all duration-75"
+                  style={{ width: `${currentMetrics.brake}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Ghost Delta Status */}
+        {ghostModeEnabled && (
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-[#64748B] font-bold">VS GHOST ({activeDriver.code}):</span>
+            <span
+              className={`font-black text-xs px-2 py-0.5 rounded ${
+                ghostDeltaS <= 0
+                  ? 'text-[#00E676] bg-[#00E676]/15 border border-[#00E676]/30'
+                  : 'text-[#E10600] bg-[#E10600]/15 border border-[#E10600]/30'
+              }`}
+            >
+              {ghostDeltaS <= 0 ? '▲ -' : '▼ +'}
+              {Math.abs(ghostDeltaS).toFixed(3)}s
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* 5. Playback Controls & Scrubber */}
+      <div className="px-4 py-2.5 bg-[#080B12] flex flex-col gap-2">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] mono text-[#64748B] w-12">
+          <span className="text-[10px] mono text-[#64748B] w-12 tabular">
             {Math.round(activeDistanceM)}m
           </span>
           <input
@@ -1083,20 +1027,19 @@ export default function TrackMap({
             step={5}
             value={Math.round(activeDistanceM)}
             onChange={(e) => onHoverDistance && onHoverDistance(parseFloat(e.target.value))}
-            className="flex-1 accent-[#FF8000] cursor-pointer h-1.5 bg-[#141B2A] rounded-lg"
+            className="flex-1 accent-[#FF8000] cursor-pointer h-1 bg-[#1A2336] rounded-lg"
           />
-          <span className="text-[10px] mono text-[#64748B] w-12 text-right">
+          <span className="text-[10px] mono text-[#64748B] w-12 text-right tabular">
             {lapLength}m
           </span>
         </div>
 
-        {/* Playback Buttons */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#1A2333]/60">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setIsPlaying(!isPlaying)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-black mono transition-all shadow-md ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-black mono transition-all shadow-xs ${
                 isPlaying
                   ? 'bg-[#E10600] text-white'
                   : 'bg-[#FF8000] text-black hover:bg-[#FFA033]'
@@ -1104,11 +1047,11 @@ export default function TrackMap({
             >
               {isPlaying ? (
                 <>
-                  <Pause className="w-3.5 h-3.5" /> PAUSE LAP
+                  <Pause className="w-3.5 h-3.5" /> PAUSE
                 </>
               ) : (
                 <>
-                  <Play className="w-3.5 h-3.5 fill-current" /> PLAY LAP REPLAY
+                  <Play className="w-3.5 h-3.5 fill-current" /> PLAY REPLAY
                 </>
               )}
             </button>
@@ -1116,14 +1059,13 @@ export default function TrackMap({
             <button
               type="button"
               onClick={() => onHoverDistance && onHoverDistance(0)}
-              className="p-1.5 rounded-md bg-[#131B2B] text-[#94A3B8] hover:text-white border border-[#212E47] transition-colors"
+              className="p-1 rounded bg-[#101524] text-[#94A3B8] hover:text-white border border-[#1A2336] transition-colors"
               title="Reset to Start/Finish line"
             >
               <RotateCcw className="w-3.5 h-3.5" />
             </button>
 
-            {/* Playback Speed Multipliers */}
-            <div className="flex items-center bg-[#131B2B] rounded-md p-0.5 border border-[#212E47]">
+            <div className="flex items-center bg-[#101524] rounded p-0.5 border border-[#1A2336]">
               {[0.5, 1, 2, 4].map((spd) => (
                 <button
                   key={spd}
@@ -1141,9 +1083,8 @@ export default function TrackMap({
             </div>
           </div>
 
-          {/* Context Note */}
-          <div className="text-[11px] mono text-[#94A3B8] flex items-center gap-2">
-            <span className="text-[#64748B] hidden md:inline">{sessionStats.note}</span>
+          <div className="text-[10px] mono text-[#64748B] hidden sm:block">
+            {sessionStats.note}
           </div>
         </div>
       </div>
