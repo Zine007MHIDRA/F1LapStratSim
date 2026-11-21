@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import F1Logo from './F1Logo';
 import { introAudio } from '../utils/introAudio';
-import { Volume2, VolumeX, ArrowRight, Zap, Radio, X } from 'lucide-react';
+import { ArrowRight, Zap, Radio } from 'lucide-react';
 
 interface F1IntroSplashProps {
   onDismiss: () => void;
@@ -11,7 +11,7 @@ interface F1IntroSplashProps {
 }
 
 export default function F1IntroSplash({ onDismiss, autoDismissMs }: F1IntroSplashProps) {
-  const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
+  const audioEnabled = true;
   const [isWarping, setIsWarping] = useState<boolean>(false);
 
   useEffect(() => {
@@ -90,35 +90,6 @@ export default function F1IntroSplash({ onDismiss, autoDismissMs }: F1IntroSplas
           <span className="text-xs font-mono font-bold tracking-widest text-white uppercase">
             F1 // PIT-WALL TELEMETRY
           </span>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              setAudioEnabled(!audioEnabled);
-              if (audioEnabled) {
-                introAudio.stopF1RadioSound();
-              } else {
-                introAudio.playF1RadioSound();
-              }
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors cursor-pointer ${
-              audioEnabled 
-                ? 'bg-[#080B12] border-[#00E676]/40 text-[#00E676]' 
-                : 'bg-[#080B12] border-[#1A2336] text-[#64748B]'
-            }`}
-          >
-            {audioEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-            {audioEnabled ? 'RADIO ON' : 'MUTED'}
-          </button>
-
-          <button
-            onClick={instantSkip}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#080B12] hover:bg-[#1A2336] border border-[#1A2336] text-[#94A3B8] hover:text-white text-xs font-mono transition-colors cursor-pointer"
-          >
-            <span>SKIP (ESC)</span>
-            <X className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
 
