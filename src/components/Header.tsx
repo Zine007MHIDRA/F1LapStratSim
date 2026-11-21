@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { CIRCUITS_LIST } from '../data/circuits';
 import { CircuitData } from '../engine/types';
-import { Gauge, Sliders, MapPin, Zap, Activity } from 'lucide-react';
+import { Gauge, Sliders, MapPin, Zap, Activity, Sparkles } from 'lucide-react';
 
 interface HeaderProps {
   currentCircuit: CircuitData;
@@ -103,32 +104,43 @@ export default function Header({
         </div>
 
         {/* Navigation Tabs */}
-        <nav className="flex space-x-1 md:space-x-4 border-t border-[#1A2336]/60 pt-1.5 pb-0.5 overflow-x-auto" aria-label="Simulator Navigation">
-          {[
-            { id: 'simulator', label: 'SIMULATOR', icon: Gauge },
-            { id: 'telemetry', label: 'TELEMETRY COMPARISON', icon: Activity },
-            { id: 'strategy', label: 'STRATEGY OPTIMIZER', icon: Sliders },
-            { id: 'circuit', label: 'CIRCUIT BLUEPRINT', icon: MapPin },
-            { id: 'regulations', label: '2025 vs 2026 REGS', icon: Zap },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => onSelectTab(tab.id as any)}
-                className={`flex items-center gap-1.5 py-1.5 px-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all whitespace-nowrap mono ${
-                  isActive
-                    ? 'border-[#E10600] text-white bg-[#101524]/60 rounded-t'
-                    : 'border-transparent text-[#64748B] hover:text-[#94A3B8] hover:border-[#2A3854]'
-                }`}
-              >
-                <Icon className={`w-3 h-3 ${isActive ? 'text-[#E10600]' : 'text-[#64748B]'}`} />
-                {tab.label}
-              </button>
-            );
-          })}
+        <nav className="flex items-center justify-between border-t border-[#1A2336]/60 pt-1.5 pb-0.5 overflow-x-auto gap-2" aria-label="Simulator Navigation">
+          <div className="flex space-x-1 md:space-x-4">
+            {[
+              { id: 'simulator', label: 'SIMULATOR', icon: Gauge },
+              { id: 'telemetry', label: 'TELEMETRY COMPARISON', icon: Activity },
+              { id: 'strategy', label: 'STRATEGY OPTIMIZER', icon: Sliders },
+              { id: 'circuit', label: 'CIRCUIT BLUEPRINT', icon: MapPin },
+              { id: 'regulations', label: '2025 vs 2026 REGS', icon: Zap },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => onSelectTab(tab.id as any)}
+                  className={`flex items-center gap-1.5 py-1.5 px-3 text-xs font-bold tracking-wider uppercase border-b-2 transition-all whitespace-nowrap mono ${
+                    isActive
+                      ? 'border-[#E10600] text-white bg-[#101524]/60 rounded-t'
+                      : 'border-transparent text-[#64748B] hover:text-[#94A3B8] hover:border-[#2A3854]'
+                  }`}
+                >
+                  <Icon className={`w-3 h-3 ${isActive ? 'text-[#E10600]' : 'text-[#64748B]'}`} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <Link
+            href="/intro"
+            className="flex items-center gap-1.5 py-1 px-2.5 text-[11px] font-bold tracking-wider uppercase border border-[#1A2336] bg-[#080B12] hover:bg-[#1A2336] hover:border-[#00F0FF]/40 text-[#00F0FF] rounded transition-all whitespace-nowrap mono shadow-xs"
+            title="Preview and compare intro cinematic styles"
+          >
+            <Sparkles className="w-3 h-3 text-[#00F0FF]" />
+            INTRO STUDIO
+          </Link>
         </nav>
       </div>
     </header>
