@@ -1,14 +1,41 @@
 /**
- * Procedural Web Audio API sound synthesizer for F1 Simulator intro sequences.
- * Zero external audio files required - 100% generated in real-time.
+ * F1 Audio Engine supporting authentic recorded Formula 1 engine audio files
+ * (/audio/f1_real_rev.mp3, /audio/f1_engine_real.mp3, /audio/f1_flyby.mp3)
+ * with instant preloading and Web Audio oscillator fallbacks.
  */
 
 class IntroSoundEngine {
   private ctx: AudioContext | null = null;
+  private revAudio: HTMLAudioElement | null = null;
+  private launchAudio: HTMLAudioElement | null = null;
+  private flybyAudio: HTMLAudioElement | null = null;
   private engineOsc: OscillatorNode | null = null;
   private turboOsc: OscillatorNode | null = null;
   private engineGain: GainNode | null = null;
-  private filter: BiquadFilterNode | null = null;
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      this.initRealAudio();
+    }
+  }
+
+  private initRealAudio() {
+    try {
+      this.revAudio = new Audio('/audio/f1_real_rev.mp3');
+      this.revAudio.preload = 'auto';
+      this.revAudio.volume = 0.85;
+
+      this.launchAudio = new Audio('/audio/f1_engine_real.mp3');
+      this.launchAudio.preload = 'auto';
+      this.launchAudio.volume = 0.9;
+
+      this.flybyAudio = new Audio('/audio/f1_flyby.mp3');
+      this.flybyAudio.preload = 'auto';
+      this.flybyAudio.volume = 0.8;
+    } catch (e) {
+      console.warn('Audio preloading failed:', e);
+    }
+  }
 
   private getContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -22,6 +49,72 @@ class IntroSoundEngine {
       this.ctx.resume();
     }
     return this.ctx;
+  }
+
+  /**
+   * Play real recorded F1 engine revs (rising RPM)
+   */
+  public playRealRev(playbackRate = 1.0) {
+    if (this.revAudio) {
+      try {
+        this.revAudio.currentTime = 0;
+        this.revAudio.playbackRate = playbackRate;
+        const playPromise = this.revAudio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Fallback to synthesized engine if browser autoplay is constrained
+            this.startEngine(6000);
+          });
+        }
+        return;
+      } catch {
+        // Fallback
+      }
+    }
+    this.startEngine(6000);
+  }
+
+  /**
+   * Stop rev audio smoothly
+   */
+  public stopRealRev() {
+    if (this.revAudio) {
+      try {
+        this.revAudio.pause();
+        this.revAudio.currentTime = 0;
+      } catch {}
+    }
+    this.stopEngine();
+  }
+
+  /**
+   * Play real recorded F1 launch roar on Lights Out
+   */
+  public playRealLaunch() {
+    this.stopRealRev();
+    if (this.launchAudio) {
+      try {
+        this.launchAudio.currentTime = 0;
+        this.launchAudio.playbackRate = 1.05;
+        this.launchAudio.play().catch(() => {});
+        return;
+      } catch {}
+    }
+    this.playLaunchSnap();
+  }
+
+  /**
+   * Play real recorded F1 high-speed track pass-by
+   */
+  public playRealFlyby() {
+    if (this.flybyAudio) {
+      try {
+        this.flybyAudio.currentTime = 0;
+        this.flybyAudio.play().catch(() => {});
+        return;
+      } catch {}
+    }
+    this.playFlyBy();
   }
 
   /**
@@ -48,7 +141,7 @@ class IntroSoundEngine {
   }
 
   /**
-   * High-tech telemetry data packet blip (arpeggiated cyber ping)
+   * High-tech telemetry data packet blip
    */
   public playTelemetryPing() {
     const ctx = this.getContext();
@@ -78,7 +171,7 @@ class IntroSoundEngine {
     const ctx = this.getContext();
     if (!ctx) return;
 
-    const bufferSize = ctx.sampleRate * 0.12;
+    const bufferSize = ctx.sampleRate * 0.14;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
@@ -95,7 +188,7 @@ class IntroSoundEngine {
 
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.14);
 
     noise.connect(bandpass);
     bandpass.connect(gain);
@@ -105,14 +198,14 @@ class IntroSoundEngine {
   }
 
   /**
-   * Start F1 engine sound at idle RPM (approx 4,000 RPM idle)
+   * Procedural synthesized engine fallback
    */
   public startEngine(rpm = 4000) {
     const ctx = this.getContext();
     if (!ctx) return;
     this.stopEngine();
 
-    const fundamental = (rpm / 60) * 3; // 3 cylinders firing per rev for V6 4-stroke
+    const fundamental = (rpm / 60) * 3;
 
     this.engineOsc = ctx.createOscillator();
     this.engineOsc.type = 'sawtooth';
@@ -122,50 +215,31 @@ class IntroSoundEngine {
     this.turboOsc.type = 'sine';
     this.turboOsc.frequency.setValueAtTime(fundamental * 12, ctx.currentTime);
 
-    this.filter = ctx.createBiquadFilter();
-    this.filter.type = 'lowpass';
-    this.filter.frequency.setValueAtTime(Math.min(3000, fundamental * 8), ctx.currentTime);
-    this.filter.Q.value = 4.0;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(Math.min(3200, fundamental * 8), ctx.currentTime);
 
     this.engineGain = ctx.createGain();
     this.engineGain.gain.setValueAtTime(0.18, ctx.currentTime);
 
-    const turboGain = ctx.createGain();
-    turboGain.gain.setValueAtTime(0.04, ctx.currentTime);
-
-    this.engineOsc.connect(this.filter);
-    this.turboOsc.connect(turboGain);
-    this.filter.connect(this.engineGain);
-    turboGain.connect(this.engineGain);
+    this.engineOsc.connect(filter);
+    filter.connect(this.engineGain);
     this.engineGain.connect(ctx.destination);
 
     this.engineOsc.start();
-    this.turboOsc.start();
   }
 
-  /**
-   * Ramp engine RPM smoothly to target RPM (e.g. 12,500 RPM rev limiter)
-   */
   public setRpm(rpm: number, duration = 0.4) {
     const ctx = this.getContext();
-    if (!ctx || !this.engineOsc || !this.turboOsc || !this.filter) return;
+    if (!ctx || !this.engineOsc) return;
 
     const fundamental = (rpm / 60) * 3;
     const now = ctx.currentTime;
 
     this.engineOsc.frequency.cancelScheduledValues(now);
     this.engineOsc.frequency.linearRampToValueAtTime(fundamental, now + duration);
-
-    this.turboOsc.frequency.cancelScheduledValues(now);
-    this.turboOsc.frequency.linearRampToValueAtTime(fundamental * 14, now + duration);
-
-    this.filter.frequency.cancelScheduledValues(now);
-    this.filter.frequency.linearRampToValueAtTime(Math.min(5000, fundamental * 9), now + duration);
   }
 
-  /**
-   * Stop engine sound with smooth fade-out
-   */
   public stopEngine() {
     if (this.engineGain && this.ctx) {
       try {
@@ -174,38 +248,27 @@ class IntroSoundEngine {
         this.engineGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
         setTimeout(() => {
           this.engineOsc?.stop();
-          this.turboOsc?.stop();
           this.engineOsc?.disconnect();
-          this.turboOsc?.disconnect();
           this.engineOsc = null;
-          this.turboOsc = null;
           this.engineGain = null;
         }, 160);
       } catch {
         this.engineOsc = null;
-        this.turboOsc = null;
         this.engineGain = null;
       }
     }
   }
 
-  /**
-   * Lights out / Launch throttle snap sound
-   */
   public playLaunchSnap() {
     const ctx = this.getContext();
     if (!ctx) return;
     this.setRpm(13000, 0.08);
     setTimeout(() => {
       this.stopEngine();
-      // Re-trigger brief doppler flyby
       this.playFlyBy();
     }, 350);
   }
 
-  /**
-   * Doppler fly-by whoosh sound
-   */
   public playFlyBy() {
     const ctx = this.getContext();
     if (!ctx) return;
@@ -221,9 +284,6 @@ class IntroSoundEngine {
     const now = ctx.currentTime;
     osc.frequency.setValueAtTime(450, now);
     osc.frequency.exponentialRampToValueAtTime(180, now + 0.6);
-
-    filter.frequency.setValueAtTime(1400, now);
-    filter.frequency.exponentialRampToValueAtTime(300, now + 0.6);
 
     gain.gain.setValueAtTime(0.01, now);
     gain.gain.linearRampToValueAtTime(0.28, now + 0.2);

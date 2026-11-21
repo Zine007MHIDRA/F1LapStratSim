@@ -4,20 +4,20 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { introAudio } from '../../utils/introAudio';
+import { F1_CALENDAR, CALENDAR_ROUNDS, getRaceWeekend, RaceWeekendInfo } from '../../data/f1Calendar';
 import { 
   Volume2, 
   VolumeX, 
-  Play, 
   RotateCcw, 
   ChevronRight, 
-  ShieldCheck, 
   Activity, 
   Zap, 
   Radio, 
   Gauge, 
   ArrowRight,
-  Sparkles,
-  CheckCircle2
+  MapPin,
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 
 type IntroMode = 'boot' | 'lights' | 'cinematic';
@@ -25,10 +25,14 @@ type BgImage = 'aero_cfd' | 'night_pitwall' | 'cockpit_hud';
 
 export default function IntroMockupPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<IntroMode>('boot');
-  const [bg, setBg] = useState<BgImage>('aero_cfd');
+  const [mode, setMode] = useState<IntroMode>('cinematic'); // Default to cinematic paddock as shown in screenshot
+  const [bg, setBg] = useState<BgImage>('night_pitwall');
+  const [selectedCircuitId, setSelectedCircuitId] = useState<string>('cota'); // Default to USA GP
   const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
   const [transitioning, setTransitioning] = useState<boolean>(false);
+
+  // Active race weekend data
+  const currentWeekend: RaceWeekendInfo = getRaceWeekend(selectedCircuitId);
 
   // Boot Mode States
   const [bootProgress, setBootProgress] = useState<number>(0);
@@ -49,7 +53,6 @@ export default function IntroMockupPage() {
     cockpit_hud: '/intro/cockpit_hud.jpg',
   };
 
-  // Sound helper
   const playSound = (action: () => void) => {
     if (audioEnabled) {
       action();
@@ -65,13 +68,14 @@ export default function IntroMockupPage() {
     setBootComplete(false);
 
     const logs = [
-      'SYS_INIT: CAN-Bus 2.0B handshake at 1,000 Hz... [OK]',
-      'ECU_LINK: Magneti Marelli TAG-320 telemetry gateway connected.',
-      'SENSORS: Pirelli infrared tyre carcass thermal array synchronized.',
-      'AERO_CFD: 2025/2026 ground effect downforce coefficient matrix loaded.',
-      'HYBRID_POWERTRAIN: 1.6L V6 Turbo ICE + 120kW MGU-K online (4.0 MJ SoC).',
-      'GPS_CALIBRATION: RTK-differential satellite lock: 0.002m accuracy.',
-      'MISSION_CONTROL: Pit-wall engineer stream ready for live telemetry.',
+      `SYS_INIT: Telemetry CAN-Bus 2.0B link @ 1,000 Hz... [OK]`,
+      `CIRCUIT_CALIBRATION: ${currentWeekend.circuitFullName} (${currentWeekend.location}) RTK-lock acquired.`,
+      `WEATHER_STATION: Track ${currentWeekend.trackTempC}°C | Air ${currentWeekend.airTempC}°C | ${currentWeekend.windDesc}.`,
+      `SENSORS: Pirelli infrared tyre carcass thermal array synchronized.`,
+      `POWERTRAIN: 1.6L V6 Turbo ICE + MGU-K online (4.0 MJ SoC).`,
+      `AERO_CFD: 2025/2026 Ground effect downforce map configured for ${currentWeekend.circuit.id.toUpperCase()}.`,
+      `BENCHMARK_TARGET: Pole delta tracking vs ${currentWeekend.poleBenchmark}.`,
+      `MISSION_CONTROL: Calibration complete. Live telemetry link armed.`,
     ];
 
     let current = 0;
@@ -86,19 +90,19 @@ export default function IntroMockupPage() {
         setBootComplete(true);
         playSound(() => introAudio.playRadioSquelch());
       }
-    }, 450);
+    }, 420);
   };
 
   useEffect(() => {
     if (mode === 'boot') {
       startBootSequence();
     } else {
-      introAudio.stopEngine();
+      introAudio.stopRealRev();
     }
-  }, [mode]);
+  }, [mode, selectedCircuitId]);
 
   // -------------------------------------------------------------
-  // MODE 2: 5 RED LIGHTS & LIGHTS OUT
+  // MODE 2: 5 RED LIGHTS & LIGHTS OUT (WITH REAL ENGINE SOUND)
   // -------------------------------------------------------------
   const startLightsSequence = () => {
     if (lightsRunning) return;
@@ -107,59 +111,46 @@ export default function IntroMockupPage() {
     setLightsOut(false);
     setLightsReactionTime(null);
 
-    playSound(() => introAudio.startEngine(4200));
+    // Play REAL recorded F1 engine rev audio!
+    playSound(() => introAudio.playRealRev(0.95));
 
     // Light 1
     setTimeout(() => {
       setActiveLights(1);
-      playSound(() => {
-        introAudio.playFiaBeep(880);
-        introAudio.setRpm(5500, 0.4);
-      });
+      playSound(() => introAudio.playFiaBeep(880));
     }, 1000);
 
     // Light 2
     setTimeout(() => {
       setActiveLights(2);
-      playSound(() => {
-        introAudio.playFiaBeep(940);
-        introAudio.setRpm(7200, 0.4);
-      });
+      playSound(() => introAudio.playFiaBeep(940));
     }, 2000);
 
     // Light 3
     setTimeout(() => {
       setActiveLights(3);
-      playSound(() => {
-        introAudio.playFiaBeep(1000);
-        introAudio.setRpm(9000, 0.4);
-      });
+      playSound(() => introAudio.playFiaBeep(1000));
     }, 3000);
 
     // Light 4
     setTimeout(() => {
       setActiveLights(4);
-      playSound(() => {
-        introAudio.playFiaBeep(1060);
-        introAudio.setRpm(11000, 0.4);
-      });
+      playSound(() => introAudio.playFiaBeep(1060));
     }, 4000);
 
     // Light 5
     setTimeout(() => {
       setActiveLights(5);
-      playSound(() => {
-        introAudio.playFiaBeep(1120);
-        introAudio.setRpm(12500, 0.3); // rev limiter
-      });
+      playSound(() => introAudio.playFiaBeep(1120));
 
-      // Random delay between 1.2s and 2.5s before lights out (FIA official regulation)
-      const randomHold = 1200 + Math.random() * 1300;
+      // Random delay between 1.2s and 2.4s before lights out (Official FIA rule)
+      const randomHold = 1300 + Math.random() * 1100;
       setTimeout(() => {
         setActiveLights(0);
         setLightsOut(true);
         lightsStartTimeRef.current = performance.now();
-        playSound(() => introAudio.playLaunchSnap());
+        // Trigger REAL F1 launch roar & screech
+        playSound(() => introAudio.playRealLaunch());
         setLightsRunning(false);
       }, randomHold);
     }, 5000);
@@ -177,12 +168,12 @@ export default function IntroMockupPage() {
   // -------------------------------------------------------------
   const triggerTransitionToSim = () => {
     playSound(() => {
-      introAudio.playFlyBy();
+      introAudio.playRealFlyby();
       introAudio.playRadioSquelch();
     });
     setTransitioning(true);
     setTimeout(() => {
-      router.push('/');
+      router.push(`/?circuit=${selectedCircuitId}`);
     }, 850);
   };
 
@@ -193,7 +184,7 @@ export default function IntroMockupPage() {
         className="absolute inset-0 bg-cover bg-center transition-all duration-1000 transform scale-105"
         style={{ 
           backgroundImage: `url(${bgMap[bg]})`,
-          filter: mode === 'cinematic' ? 'brightness(0.75) contrast(1.15)' : 'brightness(0.4) contrast(1.2)'
+          filter: mode === 'cinematic' ? 'brightness(0.7) contrast(1.15)' : 'brightness(0.38) contrast(1.2)'
         }}
       />
       {/* Carbon fiber grid overlay */}
@@ -210,7 +201,7 @@ export default function IntroMockupPage() {
             </span>
           </div>
           <span className="text-[11px] px-2 py-0.5 rounded bg-[#1A2336] text-[#94A3B8] font-mono">
-            COMPARE 3 STYLES
+            LIVE CALENDAR ENGINE
           </span>
         </div>
 
@@ -248,6 +239,25 @@ export default function IntroMockupPage() {
           </button>
         </div>
 
+        {/* Dynamic Race Weekend Circuit Switcher */}
+        <div className="flex items-center gap-2 text-xs font-mono">
+          <span className="text-[#FFB703] flex items-center gap-1 font-bold">
+            <Calendar className="w-3.5 h-3.5" />
+            RACE WEEKEND:
+          </span>
+          <select
+            value={selectedCircuitId}
+            onChange={(e) => setSelectedCircuitId(e.target.value)}
+            className="bg-[#080B12] border border-[#1A2336] text-white font-bold px-2.5 py-1 rounded-lg text-xs focus:outline-none cursor-pointer hover:border-[#FFB703]/50 transition-colors"
+          >
+            {CALENDAR_ROUNDS.map((rd) => (
+              <option key={rd.circuitId} value={rd.circuitId} className="bg-[#0B0F19] text-white">
+                {rd.flag} {rd.country} — {rd.gpName} ({rd.circuitFullName})
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Visual Background Selector */}
         <div className="flex items-center gap-2 text-xs font-mono">
           <span className="text-[#64748B]">BG ART:</span>
@@ -256,8 +266,8 @@ export default function IntroMockupPage() {
             onChange={(e) => setBg(e.target.value as BgImage)}
             className="bg-[#080B12] border border-[#1A2336] text-white px-2.5 py-1 rounded text-xs focus:outline-none cursor-pointer"
           >
-            <option value="aero_cfd">CFD Aero Streamlines</option>
             <option value="night_pitwall">Night Pit-Wall & Brakes</option>
+            <option value="aero_cfd">CFD Aero Streamlines</option>
             <option value="cockpit_hud">Cockpit Halo & Wheel</option>
           </select>
         </div>
@@ -267,7 +277,7 @@ export default function IntroMockupPage() {
           <button
             onClick={() => {
               setAudioEnabled(!audioEnabled);
-              if (audioEnabled) introAudio.stopEngine();
+              if (audioEnabled) introAudio.stopRealRev();
             }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors ${
               audioEnabled 
@@ -276,11 +286,11 @@ export default function IntroMockupPage() {
             }`}
           >
             {audioEnabled ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
-            {audioEnabled ? 'AUDIO ON' : 'MUTED'}
+            {audioEnabled ? 'REAL AUDIO ON' : 'MUTED'}
           </button>
 
           <Link
-            href="/"
+            href={`/?circuit=${selectedCircuitId}`}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E10600] hover:bg-[#c20500] text-white font-mono text-xs font-bold transition-all shadow-md"
           >
             SKIP TO SIM
@@ -304,11 +314,11 @@ export default function IntroMockupPage() {
                   <Activity className="w-4 h-4 text-[#00F0FF] animate-pulse" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                    F1 TELEMETRY DIAGNOSTICS & TELEMETRY BOOT
+                  <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2 font-mono">
+                    {currentWeekend.flag} {currentWeekend.gpName} // TELEMETRY BOOT
                   </h1>
                   <p className="text-xs text-[#94A3B8] font-mono">
-                    ECU TELEMETRY PROTOCOL v4.28 // FIA MONZA RTK-LOCK
+                    {currentWeekend.circuitFullName} ({currentWeekend.location}) // RTK-LOCK ARMED
                   </p>
                 </div>
               </div>
@@ -330,7 +340,7 @@ export default function IntroMockupPage() {
               {bootProgress < 100 && (
                 <div className="flex items-center gap-2 text-[#00F0FF] animate-pulse">
                   <span>{'>'}</span>
-                  <span>CALIBRATING HARDWARE CHANNELS...</span>
+                  <span>CALIBRATING SENSORS FOR {currentWeekend.circuitFullName.toUpperCase()}...</span>
                 </div>
               )}
             </div>
@@ -357,7 +367,7 @@ export default function IntroMockupPage() {
                 {bootComplete ? (
                   <>
                     <Zap className="w-4 h-4 fill-current" />
-                    ENTER MISSION CONTROL PIT-WALL
+                    ENTER MISSION CONTROL ({currentWeekend.flag} {currentWeekend.circuit.name.toUpperCase()})
                   </>
                 ) : (
                   <>SYSTEMS CALIBRATING ({bootProgress}%)...</>
@@ -373,11 +383,11 @@ export default function IntroMockupPage() {
         {mode === 'lights' && (
           <div className="w-full max-w-2xl text-center space-y-8 animate-fade-in" onClick={handleLaunchReaction}>
             <div>
-              <span className="text-xs font-mono tracking-widest text-[#94A3B8] uppercase block mb-2">
-                FIA STARTING PROCEDURE
+              <span className="text-xs font-mono tracking-widest text-[#94A3B8] uppercase block mb-1">
+                FIA START PROCEDURE // {currentWeekend.flag} {currentWeekend.gpName}
               </span>
-              <h1 className="text-2xl font-bold tracking-tight text-white">
-                GRID DEPARTURE // LIGHTS OUT
+              <h1 className="text-2xl font-bold tracking-tight text-white font-mono">
+                {currentWeekend.circuitFullName.toUpperCase()} // LIGHTS OUT
               </h1>
             </div>
 
@@ -387,7 +397,6 @@ export default function IntroMockupPage() {
                 const isLit = activeLights >= lightNum;
                 return (
                   <div key={lightNum} className="flex flex-col items-center gap-2">
-                    {/* Upper red light */}
                     <div 
                       className={`w-12 h-12 rounded-full border-2 transition-all duration-150 ${
                         isLit
@@ -395,7 +404,6 @@ export default function IntroMockupPage() {
                           : 'bg-[#1A0505] border-[#2A1010]'
                       }`}
                     />
-                    {/* Lower red light */}
                     <div 
                       className={`w-12 h-12 rounded-full border-2 transition-all duration-150 ${
                         isLit
@@ -424,12 +432,12 @@ export default function IntroMockupPage() {
               )}
               {!lightsOut && lightsRunning && (
                 <span className="text-xs font-mono text-[#FFB703] animate-pulse">
-                  REV LIMITER ENGAGED • AWAITING LIGHTS OUT...
+                  REAL V6 ENGINE REV CLIMBING • AWAITING LIGHTS OUT...
                 </span>
               )}
               {!lightsRunning && !lightsOut && (
                 <span className="text-xs font-mono text-[#94A3B8]">
-                  Click below to begin the official start countdown.
+                  Click below to play authentic F1 engine rev and arm the starting lights.
                 </span>
               )}
             </div>
@@ -442,15 +450,15 @@ export default function IntroMockupPage() {
                 className={`px-6 py-3 rounded-xl font-mono text-xs font-bold transition-all ${
                   lightsRunning
                     ? 'bg-[#1A2336] text-[#64748B] cursor-wait'
-                    : 'bg-[#E10600] hover:bg-[#c20500] text-white shadow-lg shadow-[#E10600]/25'
+                    : 'bg-[#E10600] hover:bg-[#c20500] text-white shadow-lg shadow-[#E10600]/25 cursor-pointer'
                 }`}
               >
-                {lightsRunning ? 'COUNTDOWN IN PROGRESS...' : 'START 5 RED LIGHTS SEQUENCE'}
+                {lightsRunning ? 'REAL ENGINE REVVING...' : 'START 5 RED LIGHTS (REAL AUDIO)'}
               </button>
 
               <button
                 onClick={triggerTransitionToSim}
-                className="px-6 py-3 rounded-xl bg-[#080B12] hover:bg-[#1A2336] border border-[#1A2336] font-mono text-xs font-bold text-white transition-all flex items-center gap-2"
+                className="px-6 py-3 rounded-xl bg-[#080B12] hover:bg-[#1A2336] border border-[#1A2336] font-mono text-xs font-bold text-white transition-all flex items-center gap-2 cursor-pointer"
               >
                 ENTER SIMULATOR
                 <ChevronRight className="w-4 h-4" />
@@ -460,59 +468,78 @@ export default function IntroMockupPage() {
         )}
 
         {/* ============================================================== */}
-        {/* OPTION 3: MISSION CONTROL CINEMATIC PADDOCK                     */}
+        {/* OPTION 3: MISSION CONTROL CINEMATIC PADDOCK (USER'S SCREENSHOT) */}
         {/* ============================================================== */}
         {mode === 'cinematic' && (
           <div className="w-full max-w-3xl space-y-8 animate-fade-in">
-            {/* Cinematic Title & Super-wide typography */}
+            {/* Dynamic Live Circuit Headline */}
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-xs font-mono text-[#FFB703] uppercase tracking-widest">
-                <Radio className="w-3.5 h-3.5 animate-pulse" />
-                LIVE FROM MONZA AUTODROMO NAZIONALE
+              <div className="flex items-center gap-2 text-xs font-mono text-[#FFB703] uppercase tracking-widest font-bold">
+                <span className="w-2 h-2 rounded-full bg-[#00E676] animate-ping"></span>
+                LIVE FROM {currentWeekend.circuitFullName.toUpperCase()} ({currentWeekend.location.toUpperCase()}) {currentWeekend.flag}
               </div>
+
+              {/* Status pill badge */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#1A2336] border border-[#FFB703]/40 text-[#FFB703] text-xs font-mono font-bold">
+                <Sparkles className="w-3.5 h-3.5" />
+                {currentWeekend.status} • {currentWeekend.sessionTiming}
+              </div>
+
               <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white uppercase leading-none">
                 FORMULA 1 TELEMETRY // MISSION CONTROL
               </h1>
               <p className="text-sm text-[#94A3B8] max-w-xl font-mono">
-                Real-time cornering telemetry, Pirelly tyre degradation modeling, and 2026 active aero aerodynamics simulation.
+                Real-time cornering telemetry, Pirelli tyre degradation modeling, and 2026 active aero aerodynamics simulation.
               </p>
             </div>
 
-            {/* Floating Glassmorphic Telemetry HUD Card */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#080B12]/80 backdrop-blur-md border border-[#1A2336] rounded-xl p-4 shadow-2xl font-mono text-xs">
+            {/* Dynamic Circuit Telemetry HUD Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#080B12]/85 backdrop-blur-md border border-[#1A2336] rounded-xl p-4 shadow-2xl font-mono text-xs">
               <div className="p-3 bg-[#0B0F19] rounded-lg border border-[#1A2336]/60">
                 <span className="text-[#64748B] block text-[10px]">TRACK TEMP</span>
-                <span className="text-white font-bold text-sm">42.4 °C</span>
+                <span className="text-white font-bold text-sm">{currentWeekend.trackTempC} °C</span>
               </div>
               <div className="p-3 bg-[#0B0F19] rounded-lg border border-[#1A2336]/60">
                 <span className="text-[#64748B] block text-[10px]">AIR TEMP / HUMIDITY</span>
-                <span className="text-white font-bold text-sm">28.1 °C / 54%</span>
+                <span className="text-white font-bold text-sm">{currentWeekend.airTempC} °C / {currentWeekend.humidityPct}%</span>
               </div>
               <div className="p-3 bg-[#0B0F19] rounded-lg border border-[#1A2336]/60">
-                <span className="text-[#64748B] block text-[10px]">WIND SPEED</span>
-                <span className="text-[#00F0FF] font-bold text-sm">3.4 m/s HEADWIND</span>
+                <span className="text-[#64748B] block text-[10px]">WIND VECTOR</span>
+                <span className="text-[#00F0FF] font-bold text-xs truncate block" title={currentWeekend.windDesc}>
+                  {currentWeekend.windDesc}
+                </span>
               </div>
               <div className="p-3 bg-[#0B0F19] rounded-lg border border-[#1A2336]/60">
                 <span className="text-[#64748B] block text-[10px]">POLE BENCHMARK</span>
-                <span className="text-[#00E676] font-bold text-sm">1:18.810 (NOR)</span>
+                <span className="text-[#00E676] font-bold text-sm">{currentWeekend.poleBenchmark}</span>
               </div>
             </div>
 
             {/* Launch Call-to-action */}
-            <div className="flex items-center gap-4 pt-2">
+            <div className="flex flex-wrap items-center gap-4 pt-2">
               <button
                 onClick={triggerTransitionToSim}
                 className="px-8 py-4 rounded-xl bg-[#E10600] hover:bg-[#c20500] text-white font-mono font-bold text-sm flex items-center gap-3 transition-all shadow-xl shadow-[#E10600]/30 transform hover:scale-102 cursor-pointer"
               >
                 <Gauge className="w-4 h-4" />
-                ENTER MISSION CONTROL
+                ENTER MISSION CONTROL ({currentWeekend.flag} {currentWeekend.circuit.name.toUpperCase()})
+              </button>
+
+              <button
+                onClick={() => {
+                  playSound(() => introAudio.playRealRev(1.0));
+                }}
+                className="px-5 py-4 rounded-xl bg-[#080B12] hover:bg-[#1A2336] border border-[#1A2336] text-[#00F0FF] font-mono text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
+              >
+                <Zap className="w-3.5 h-3.5" />
+                PLAY REAL F1 ENGINE REV
               </button>
 
               <button
                 onClick={() => {
                   playSound(() => introAudio.playRadioSquelch());
                 }}
-                className="px-5 py-4 rounded-xl bg-[#080B12] hover:bg-[#1A2336] border border-[#1A2336] text-white font-mono text-xs font-semibold flex items-center gap-2 transition-colors"
+                className="px-5 py-4 rounded-xl bg-[#080B12] hover:bg-[#1A2336] border border-[#1A2336] text-white font-mono text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer"
               >
                 <Radio className="w-3.5 h-3.5 text-[#FFB703]" />
                 TEST RADIO COMMS
@@ -527,7 +554,7 @@ export default function IntroMockupPage() {
         <div className="fixed inset-0 z-50 bg-[#06080C] flex flex-col items-center justify-center animate-fade-in">
           <div className="w-12 h-12 rounded-full border-2 border-[#00F0FF] border-t-transparent animate-spin mb-4" />
           <span className="text-sm font-mono tracking-widest text-[#00F0FF] uppercase animate-pulse">
-            INITIALIZING PIT-WALL TELEMETRY ENGINE...
+            LOADING TELEMETRY ENGINE FOR {currentWeekend.flag} {currentWeekend.circuitFullName.toUpperCase()}...
           </span>
         </div>
       )}

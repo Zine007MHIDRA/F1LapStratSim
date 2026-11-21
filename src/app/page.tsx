@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/Header';
 import SimulatorView from '../components/SimulatorView';
 import StrategyOptimizerView from '../components/StrategyOptimizerView';
@@ -13,12 +13,20 @@ import { car2025, car2026 } from '../engine/carModel';
 import { simulateLap } from '../engine/lapSim';
 
 export default function Home() {
-  const [circuitId, setCircuitId] = useState<string>('monza');
+  const [circuitId, setCircuitId] = useState<string>('cota');
   const [era, setEra] = useState<'2025' | '2026'>('2025');
   const [activeTab, setActiveTab] = useState<
     'simulator' | 'telemetry' | 'strategy' | 'circuit' | 'regulations'
   >('simulator');
   const [hoverDistM, setHoverDistM] = useState<number>(0);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const c = params.get('circuit');
+      if (c) setCircuitId(c);
+    }
+  }, []);
 
   const circuit = getCircuit(circuitId);
 
