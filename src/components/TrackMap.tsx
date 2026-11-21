@@ -16,7 +16,7 @@ import {
   Pause,
   RotateCcw,
   Radio,
-  Sparkles,
+  Activity,
   Compass,
 } from 'lucide-react';
 
@@ -625,7 +625,7 @@ export default function TrackMap({
                 : 'bg-[#101524] text-[#64748B] border-[#1A2336]'
             }`}
           >
-            <Sparkles className="w-3 h-3" />
+            <Activity className="w-3 h-3" />
             {ghostModeEnabled ? 'GHOST ON' : 'GHOST OFF'}
           </button>
         </div>

@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { CircuitData, StrategyPlanResult } from '../engine/types';
 import { optimizeStrategy, simulateRaceStrategy, TRACK_SC_PROBABILITY } from '../engine/strategyOptimizer';
 import { COMPOUNDS } from '../engine/tyreModel';
-import { ShieldAlert, AlertCircle, Wind, Sparkles } from 'lucide-react';
+import { ShieldAlert, AlertCircle, Wind } from 'lucide-react';
 
 interface StrategyOptimizerViewProps {
   circuit: CircuitData;

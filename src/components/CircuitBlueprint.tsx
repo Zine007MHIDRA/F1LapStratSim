@@ -38,7 +38,7 @@ export default function CircuitBlueprint({ circuit }: CircuitBlueprintProps) {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-[#080B12] p-3 rounded-lg border border-[#1A2336] text-xs mono">
             <div>
               <span className="text-[#64748B] block text-[9px] uppercase font-bold">LAP LENGTH</span>
-              <span className="text-white font-bold text-sm tabular">{circuit.lapLengthM} m</span>
+              <span className="text-white font-bold text-sm tabular">{Math.round(circuit.lapLengthM).toLocaleString()} m</span>
             </div>
             <div>
               <span className="text-[#64748B] block text-[9px] uppercase font-bold">RACE LAPS</span>
@@ -83,7 +83,7 @@ export default function CircuitBlueprint({ circuit }: CircuitBlueprintProps) {
             {circuit.topSpeedKmh.toFixed(1)} km/h
           </div>
           <div className="text-xs text-[#94A3B8] mt-1 mono">
-            Longest straight: {Math.max(...straights.map((s) => s.length))}m
+            Longest straight: {Math.round(Math.max(...straights.map((s) => s.length))).toLocaleString()}m
           </div>
           <p className="text-[11px] text-[#64748B] mt-2">
             Aero downforce configuration calibrated to achieve this top speed.

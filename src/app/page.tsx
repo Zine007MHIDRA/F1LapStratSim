@@ -34,9 +34,8 @@ export default function Home() {
         setCircuitId(live.circuitId);
       }
 
-      const hasSeen = sessionStorage.getItem('f1_intro_seen');
-      const skipParam = params.get('skipIntro');
-      if (!hasSeen && skipParam !== 'true') {
+      const introParam = params.get('intro');
+      if (introParam === 'true') {
         setShowIntro(true);
       }
     }

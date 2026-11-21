@@ -338,7 +338,7 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
 
       {/* 3. Main Split-Screen Layout (40% GPS Track Map / 60% Telemetry Oscilloscope) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Panel: 40% (5 cols) — 3D Elevation & Ghost Map */}
+        {/* Left Panel: 40% (5 cols): 3D Elevation & Ghost Map */}
         <div className="lg:col-span-5 space-y-4">
           <TrackMap
             circuit={circuit}
@@ -381,7 +381,7 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
           </div>
         </div>
 
-        {/* Right Panel: 60% (7 cols) — Multi-Channel Oscilloscope */}
+        {/* Right Panel: 60% (7 cols): Multi-Channel Oscilloscope */}
         <div className="lg:col-span-7">
           <TelemetryChart
             circuit={circuit}
