@@ -59,8 +59,8 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050507] canvas-glow text-[#F8FAFC] flex flex-col">
-      {/* Top Navigation & Circuit Bar */}
+    <div className="min-h-screen bg-[#07080A] text-[#F8FAFC] flex flex-col w-full max-w-full">
+      {/* Top Single-Row 48px Command Navbar */}
       <Header
         currentCircuit={circuit}
         onSelectCircuit={setCircuitId}
@@ -71,31 +71,29 @@ export default function Home() {
         onTriggerIntro={() => setShowIntro(true)}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5">
+      {/* Full-Bleed Utilitarian Main Workspace (8px Gaps) */}
+      <main className="flex-1 w-full max-w-full p-2">
         {activeTab === 'simulator' && (
           <SimulatorView circuit={circuit} era={era} />
         )}
 
         {activeTab === 'telemetry' && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-              <div className="lg:col-span-5">
-                <TrackMap
-                  circuit={circuit}
-                  activeDistanceM={hoverDistM}
-                  onHoverDistance={setHoverDistM}
-                  simulation={simulation}
-                />
-              </div>
-              <div className="lg:col-span-7">
-                <TelemetryChart
-                  circuit={circuit}
-                  simulation={simulation}
-                  hoverDistanceM={hoverDistM}
-                  onHoverDistance={setHoverDistM}
-                />
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-start w-full">
+            <div className="lg:col-span-5">
+              <TrackMap
+                circuit={circuit}
+                activeDistanceM={hoverDistM}
+                onHoverDistance={setHoverDistM}
+                simulation={simulation}
+              />
+            </div>
+            <div className="lg:col-span-7">
+              <TelemetryChart
+                circuit={circuit}
+                simulation={simulation}
+                hoverDistanceM={hoverDistM}
+                onHoverDistance={setHoverDistM}
+              />
             </div>
           </div>
         )}
@@ -113,16 +111,20 @@ export default function Home() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-[#1A2336] bg-[#080B12] py-3.5 text-xs text-[#64748B]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 mono text-[11px]">
-          <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00E676] inline-block animate-pulse"></span>
-            <span className="text-[#94A3B8]">BOX BOX // PIT-WALL TELEMETRY ENGINE ONLINE</span>
-          </div>
-          <div>
-            FastF1 Ingested Benchmarks • Pirelli Tyre Degradation • FIA Technical Regulations
-          </div>
+      {/* Engineering Footer Bar */}
+      <footer className="border-t border-[#1E222B] bg-[#0D0F13] h-8 px-3 text-xs text-[#64748B] flex items-center justify-between mono text-[10px] w-full">
+        <div className="flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#00E676] inline-block animate-pulse" />
+          <span className="text-[#94A3B8] font-bold">BOX BOX TELEMETRY ONLINE</span>
+          <span className="text-[#3E485B]">|</span>
+          <span>100Hz CAN-BUS LINK</span>
+        </div>
+        <div className="hidden sm:flex items-center gap-3 text-[#64748B]">
+          <span>FastF1 Ingested Benchmarks</span>
+          <span>•</span>
+          <span>Pirelli Tyre Model</span>
+          <span>•</span>
+          <span>FIA Technical Regulations</span>
         </div>
       </footer>
     </div>

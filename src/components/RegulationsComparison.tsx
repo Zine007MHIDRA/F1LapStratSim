@@ -50,47 +50,47 @@ export default function RegulationsComparison() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2 w-full font-mono select-none">
       {/* Header */}
-      <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-5 shadow-xl">
-        <h2 className="text-base font-black text-white flex items-center gap-2 tracking-wider mono uppercase">
-          <span className="w-2 h-4 bg-[#00F0FF] rounded-xs" />
-          FIA TECHNICAL REGULATIONS // 2025 vs 2026
+      <div className="bg-[#0D0F13] border border-[#1E222B] rounded-[2px] p-3">
+        <h2 className="text-xs font-bold text-white flex items-center gap-2 tracking-wider uppercase">
+          <span className="w-1.5 h-3 bg-[#00E5FF] rounded-[1px]" />
+          FIA TECHNICAL REGULATIONS — 2025 vs 2026
         </h2>
-        <p className="text-xs text-[#64748B] mt-1 mono">
+        <p className="text-[11px] text-[#64748B] mt-0.5">
           Detailed vehicle dynamics comparison between current ground-effect aerodynamics and the upcoming 2026 50/50 powertrain shift.
         </p>
       </div>
 
       {/* Comparison Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         {/* 2025 Card */}
-        <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-5 flex flex-col gap-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-[#1A2336] pb-3">
+        <div className="bg-[#0D0F13] border border-[#1E222B] rounded-[2px] p-3 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between border-b border-[#1E222B] pb-2">
             <div>
-              <span className="text-[10px] font-bold text-[#E10600] tracking-wider uppercase mono">
+              <span className="text-[9px] font-bold text-[#FF2A54] tracking-wider uppercase">
                 CURRENT ERA
               </span>
-              <h3 className="text-lg font-black text-white tracking-wide mono">2025 Regulations</h3>
+              <h3 className="text-sm font-bold text-white tracking-wide">2025 Regulations</h3>
             </div>
-            <span className="text-xs mono px-2.5 py-1 rounded bg-[#E10600]/15 text-[#E10600] border border-[#E10600]/30 font-bold">
+            <span className="text-[10px] px-2 py-0.5 rounded-[1px] bg-[#FF2A54]/15 text-[#FF2A54] border border-[#FF2A54]/30 font-bold">
               GROUND EFFECT + DRS
             </span>
           </div>
 
-          <div className="space-y-3 text-xs">
-            <div className="bg-[#080B12] p-3 rounded-lg border border-[#1A2336]">
-              <span className="text-[#64748B] block font-mono text-[9px] uppercase font-bold">POWERTRAIN SPLIT</span>
-              <div className="text-white font-bold text-sm mt-0.5">82% ICE / 18% Electric</div>
-              <p className="text-[#94A3B8] mt-1 text-[11px]">
+          <div className="space-y-2 text-xs">
+            <div className="bg-[#07080A] p-2.5 rounded-[2px] border border-[#1E222B]">
+              <span className="text-[#64748B] block text-[9px] uppercase font-bold">POWERTRAIN SPLIT</span>
+              <div className="text-white font-bold text-xs mt-0.5 tabular">82% ICE / 18% Electric</div>
+              <p className="text-[#94A3B8] mt-1 text-[10px]">
                 The ICE delivers the dominant share of tractive power. The 120 kW MGU-K supplements acceleration until reaching 4 MJ deployment limit.
               </p>
             </div>
 
-            <div className="bg-[#080B12] p-3 rounded-lg border border-[#1A2336]">
-              <span className="text-[#64748B] block font-mono text-[9px] uppercase font-bold">MGU-H STABILIZER</span>
-              <div className="text-white font-bold text-sm mt-0.5">Unlimited Continuous Harvest</div>
-              <p className="text-[#94A3B8] mt-1 text-[11px]">
+            <div className="bg-[#07080A] p-2.5 rounded-[2px] border border-[#1E222B]">
+              <span className="text-[#64748B] block text-[9px] uppercase font-bold">MGU-H STABILIZER</span>
+              <div className="text-white font-bold text-xs mt-0.5">Unlimited Continuous Harvest</div>
+              <p className="text-[#94A3B8] mt-1 text-[10px]">
                 The turbo shaft motor-generator harvests surplus exhaust enthalpy continuously, ensuring battery rarely drops below full capacity on flying laps.
               </p>
             </div>
@@ -98,32 +98,32 @@ export default function RegulationsComparison() {
         </div>
 
         {/* 2026 Card */}
-        <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-5 flex flex-col gap-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-[#1A2336] pb-3">
+        <div className="bg-[#0D0F13] border border-[#1E222B] rounded-[2px] p-3 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between border-b border-[#1E222B] pb-2">
             <div>
-              <span className="text-[10px] font-bold text-[#00F0FF] tracking-wider uppercase mono">
+              <span className="text-[9px] font-bold text-[#00E5FF] tracking-wider uppercase">
                 NEXT GENERATION
               </span>
-              <h3 className="text-lg font-black text-white tracking-wide mono">2026 Regulations</h3>
+              <h3 className="text-sm font-bold text-white tracking-wide">2026 Regulations</h3>
             </div>
-            <span className="text-xs mono px-2.5 py-1 rounded bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30 font-bold">
+            <span className="text-[10px] px-2 py-0.5 rounded-[1px] bg-[#00E5FF]/15 text-[#00E5FF] border border-[#00E5FF]/30 font-bold">
               ACTIVE AERO + 350kW MGU-K
             </span>
           </div>
 
-          <div className="space-y-3 text-xs">
-            <div className="bg-[#080B12] p-3 rounded-lg border border-[#1A2336]">
-              <span className="text-[#64748B] block font-mono text-[9px] uppercase font-bold">POWERTRAIN SPLIT</span>
-              <div className="text-white font-bold text-sm mt-0.5">53% ICE / 47% Electric</div>
-              <p className="text-[#94A3B8] mt-1 text-[11px]">
+          <div className="space-y-2 text-xs">
+            <div className="bg-[#07080A] p-2.5 rounded-[2px] border border-[#1E222B]">
+              <span className="text-[#64748B] block text-[9px] uppercase font-bold">POWERTRAIN SPLIT</span>
+              <div className="text-white font-bold text-xs mt-0.5 tabular">53% ICE / 47% Electric</div>
+              <p className="text-[#94A3B8] mt-1 text-[10px]">
                 Nearly 50% of the tractive effort is electric. Acceleration from corner apex is explosive, but straight-line clipping occurs when battery depletes.
               </p>
             </div>
 
-            <div className="bg-[#080B12] p-3 rounded-lg border border-[#1A2336]">
-              <span className="text-[#64748B] block font-mono text-[9px] uppercase font-bold">ACTIVE AERO MODES</span>
-              <div className="text-white font-bold text-sm mt-0.5">Dual-Mode Wings (Z & X)</div>
-              <p className="text-[#94A3B8] mt-1 text-[11px]">
+            <div className="bg-[#07080A] p-2.5 rounded-[2px] border border-[#1E222B]">
+              <span className="text-[#64748B] block text-[9px] uppercase font-bold">ACTIVE AERO MODES</span>
+              <div className="text-white font-bold text-xs mt-0.5">Dual-Mode Wings (Z & X)</div>
+              <p className="text-[#94A3B8] mt-1 text-[10px]">
                 Z-Mode engages high downforce for cornering stability. X-Mode sheds front and rear wing angle on straights to compensate for reduced ICE top-end power.
               </p>
             </div>
@@ -132,33 +132,33 @@ export default function RegulationsComparison() {
       </div>
 
       {/* Engineering Specification Matrix */}
-      <div className="bg-[#0B0F19] border border-[#1A2336] rounded-xl p-5 shadow-xl">
-        <h3 className="text-xs font-black text-white uppercase tracking-wider mb-4 border-b border-[#1A2336] pb-2 mono">
+      <div className="bg-[#0D0F13] border border-[#1E222B] rounded-[2px] p-3">
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider mb-2.5 border-b border-[#1E222B] pb-2">
           Parametric Physics Comparison
         </h3>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs mono">
+          <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-[#1A2336] text-[#64748B] uppercase text-[10px]">
-                <th className="py-2.5 px-3">Subsystem</th>
-                <th className="py-2.5 px-3">2025 Ground Effect</th>
-                <th className="py-2.5 px-3">2026 Next-Gen</th>
-                <th className="py-2.5 px-3">Dynamics Impact</th>
+              <tr className="border-b border-[#1E222B] text-[#64748B] uppercase text-[9px]">
+                <th className="py-2 px-2.5">Subsystem</th>
+                <th className="py-2 px-2.5">2025 Ground Effect</th>
+                <th className="py-2 px-2.5">2026 Next-Gen</th>
+                <th className="py-2 px-2.5">Dynamics Impact</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1A2336]/60">
+            <tbody className="divide-y divide-[#1E222B]/60">
               {comparisonRows.map((row, idx) => {
                 const Icon = row.icon;
                 return (
-                  <tr key={idx} className="hover:bg-[#101524] transition-colors">
-                    <td className="py-3 px-3 text-white font-medium flex items-center gap-2">
-                      <Icon className="w-3.5 h-3.5 text-[#00F0FF]" />
+                  <tr key={idx} className="hover:bg-[#14171E] transition-colors">
+                    <td className="py-2 px-2.5 text-white font-medium flex items-center gap-2">
+                      <Icon className="w-3.5 h-3.5 text-[#00E5FF]" strokeWidth={1.5} />
                       {row.feature}
                     </td>
-                    <td className="py-3 px-3 text-[#E10600] font-semibold">{row.reg2025}</td>
-                    <td className="py-3 px-3 text-[#00F0FF] font-semibold">{row.reg2026}</td>
-                    <td className="py-3 px-3 text-[#94A3B8]">{row.delta}</td>
+                    <td className="py-2 px-2.5 text-[#FF2A54] font-semibold">{row.reg2025}</td>
+                    <td className="py-2 px-2.5 text-[#00E5FF] font-semibold">{row.reg2026}</td>
+                    <td className="py-2 px-2.5 text-[#94A3B8]">{row.delta}</td>
                   </tr>
                 );
               })}

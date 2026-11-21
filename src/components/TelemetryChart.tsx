@@ -21,7 +21,7 @@ export default function TelemetryChart({
   const realTel = circuit.telemetry;
   const simDist = simulation.distance;
   const simSpeed = simulation.speedKmh;
-  const maxDist = circuit.lapLengthM;
+  const maxDist = circuit.lapLengthM || 5000;
 
   // Nearest data point lookups for cursor scrubber
   const activeMetrics = useMemo(() => {
@@ -52,14 +52,12 @@ export default function TelemetryChart({
     const gLatVal = simulation.gLat[simIdx] || 0;
     const throttleVal = simulation.throttlePct[simIdx] || 0;
     const speedVal = simSpeed[simIdx] || 0;
-    // 2026 Active Aero state logic: straight line high-speed acceleration engages X-Mode
     const isXModeActive = throttleVal > 85 && Math.abs(gLatVal) < 1.6 && speedVal > 220;
 
     return {
       distance: Math.round(hoverDistanceM),
       realSpeed: Math.round(realTel.speed[realIdx] || 0),
       simSpeed: Math.round(speedVal),
-      simFreeSpeed: Math.round(simulation.speedFreeKmh[simIdx] || 0),
       throttle: Math.round(throttleVal),
       brake: Math.round(simulation.brakePct[simIdx] || 0),
       gear: simulation.gear[simIdx] || 1,
@@ -72,10 +70,10 @@ export default function TelemetryChart({
 
   // SVG channel heights
   const svgWidth = 1000;
-  const speedH = 175;
-  const pedalsH = 85;
-  const gforceH = 85;
-  const ersH = 85;
+  const speedH = 160;
+  const pedalsH = 80;
+  const gforceH = 80;
+  const ersH = 80;
 
   // Coordinate scales
   const scaleX = (d: number) => (d / maxDist) * svgWidth;
@@ -124,86 +122,118 @@ export default function TelemetryChart({
     onHoverDistance(distM);
   };
 
+  // Generate dual-density vertical distance gridlines
+  const verticalGridlines = useMemo(() => {
+    const majorDist = maxDist > 5500 ? 1000 : 500;
+    const minorDist = 200;
+    const lines: { x: number; isMajor: boolean; label?: string }[] = [];
+
+    for (let d = 0; d <= maxDist; d += minorDist) {
+      const isMajor = d % majorDist === 0;
+      lines.push({
+        x: scaleX(d),
+        isMajor,
+        label: isMajor ? `${d}m` : undefined,
+      });
+    }
+    return lines;
+  }, [maxDist]);
+
   return (
-    <div className="obsidian-card rounded-2xl border border-white/10 flex flex-col shadow-2xl overflow-hidden backdrop-blur-xl">
+    <div className="bg-[#0D0F13] border border-[#1E222B] rounded-[2px] flex flex-col overflow-hidden select-none font-mono">
       {/* 1. Command Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 border-b border-white/10 bg-[#0A0D15]/80">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-[#1E222B] bg-[#0A0C10]">
         <div className="flex items-center gap-3">
-          <span className="text-xs font-black tracking-wider text-white uppercase mono">
-            TELEMETRY OSCILLOSCOPE // {circuit.name.toUpperCase()}
+          <span className="text-xs font-bold tracking-wider text-white uppercase">
+            LIVE CHANNELS — 100Hz
           </span>
-          <div className="flex items-center gap-3 text-xs mono">
+          <div className="flex items-center gap-3 text-[11px]">
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-0.5 bg-[#00F0FF] rounded-full inline-block shadow-[0_0_6px_#00F0FF]" />
-              <span className="text-[#00F0FF] text-[11px] font-bold">
-                SIM ({activeMetrics.simSpeed} km/h)
+              <span className="w-2 h-2 rounded-[1px] bg-[#00E5FF] inline-block" />
+              <span className="text-[#00E5FF] font-bold tabular">
+                SIM {activeMetrics.simSpeed} km/h
               </span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-0.5 bg-[#FF2800] rounded-full inline-block shadow-[0_0_6px_#FF2800]" />
-              <span className="text-[#FF2800] text-[11px] font-bold">
-                POLE ({activeMetrics.realSpeed} km/h)
+              <span className="w-2 h-2 rounded-[1px] bg-[#FF2A54] inline-block" />
+              <span className="text-[#FF2A54] font-bold tabular">
+                POLE {activeMetrics.realSpeed} km/h
               </span>
             </div>
           </div>
         </div>
 
-        {/* Channel Segmented Filter */}
-        <div className="flex items-center bg-[#05070B] p-0.5 rounded-xl border border-white/10">
-          {(['all', 'speed', 'pedals', 'gforce', 'ers'] as const).map((ch) => (
-            <button
-              key={ch}
-              type="button"
-              onClick={() => setActiveChannel(ch)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all mono cursor-pointer ${
-                activeChannel === ch
-                  ? 'bg-[#161B28] text-white shadow-[0_0_10px_rgba(255,255,255,0.1)] border border-white/10'
-                  : 'text-[#64748B] hover:text-[#94A3B8]'
-              }`}
-            >
-              {ch}
-            </button>
-          ))}
+        {/* Compact Channel Filter Toggles with Status Dots */}
+        <div className="flex items-center bg-[#14171E] p-0.5 border border-[#1E222B] rounded-[2px] text-[10px]">
+          {(
+            [
+              { id: 'all', label: 'ALL', dot: '#FFFFFF' },
+              { id: 'speed', label: 'SPEED', dot: '#00E5FF' },
+              { id: 'pedals', label: 'PEDALS', dot: '#00E676' },
+              { id: 'gforce', label: 'GFORCE', dot: '#FFB300' },
+              { id: 'ers', label: 'ERS', dot: '#B829EA' },
+            ] as const
+          ).map((ch) => {
+            const isSel = activeChannel === ch.id;
+            return (
+              <button
+                key={ch.id}
+                type="button"
+                onClick={() => setActiveChannel(ch.id)}
+                className={`flex items-center gap-1 px-2 py-0.5 rounded-[1px] font-bold tracking-wider transition-colors cursor-pointer ${
+                  isSel
+                    ? 'bg-[#1E2433] text-white border border-[#2D384D]'
+                    : 'text-[#64748B] hover:text-[#94A3B8]'
+                }`}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full inline-block"
+                  style={{ backgroundColor: ch.dot }}
+                />
+                <span>{ch.label}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* 2. Cursor Scrubber Telemetry Metrics Strip */}
-      <div className="px-4 py-2.5 bg-[#080B12]/90 border-b border-white/5 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2 text-xs mono items-center">
+      <div className="px-3 py-1.5 bg-[#0D0F13] border-b border-[#1E222B] grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2 text-xs items-center">
         <div>
-          <span className="text-[#64748B] block text-[9px] font-bold uppercase">DISTANCE</span>
+          <span className="text-[#64748B] block text-[9px] uppercase">DISTANCE</span>
           <span className="text-white font-bold tabular">{activeMetrics.distance.toLocaleString()}m</span>
         </div>
         <div>
-          <span className="text-[#64748B] block text-[9px] font-bold uppercase">THROTTLE</span>
+          <span className="text-[#64748B] block text-[9px] uppercase">THROTTLE</span>
           <span className="text-[#00E676] font-bold tabular">{activeMetrics.throttle}%</span>
         </div>
         <div>
-          <span className="text-[#64748B] block text-[9px] font-bold uppercase">BRAKE</span>
-          <span className="text-[#FF2800] font-bold tabular">{activeMetrics.brake}%</span>
+          <span className="text-[#64748B] block text-[9px] uppercase">BRAKE</span>
+          <span className="text-[#FF2A54] font-bold tabular">{activeMetrics.brake}%</span>
         </div>
         <div>
-          <span className="text-[#64748B] block text-[9px] font-bold uppercase">GEAR</span>
-          <span className="text-[#00F0FF] font-bold tabular">G{activeMetrics.gear}</span>
+          <span className="text-[#64748B] block text-[9px] uppercase">GEAR</span>
+          <span className="text-white font-bold tabular">G{activeMetrics.gear}</span>
         </div>
         <div>
-          <span className="text-[#64748B] block text-[9px] font-bold uppercase">LAT G</span>
-          <span className="text-[#FFB300] font-bold tabular">{activeMetrics.gLat} g</span>
+          <span className="text-[#64748B] block text-[9px] uppercase">LAT G</span>
+          <span className="text-[#FFB300] font-bold tabular">{activeMetrics.gLat}G</span>
         </div>
         <div>
-          <span className="text-[#64748B] block text-[9px] font-bold uppercase">LONG G</span>
-          <span className="text-[#00F0FF] font-bold tabular">{activeMetrics.gLong} g</span>
+          <span className="text-[#64748B] block text-[9px] uppercase">LONG G</span>
+          <span className="text-[#00E5FF] font-bold tabular">{activeMetrics.gLong}G</span>
         </div>
         <div>
-          <span className="text-[#64748B] block text-[9px] font-bold uppercase">ERS SOC</span>
+          <span className="text-[#64748B] block text-[9px] uppercase">ERS SOC</span>
           <span className="text-[#B829EA] font-bold tabular">{activeMetrics.socMJ} MJ</span>
         </div>
         <div>
-          <span className="text-[#64748B] block text-[9px] font-bold uppercase">AERO MODE</span>
+          <span className="text-[#64748B] block text-[9px] uppercase">AERO MODE</span>
           <span
-            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+            className={`text-[10px] font-bold px-1.5 py-0.2 rounded-[1px] ${
               activeMetrics.isXMode
-                ? 'bg-[#00F0FF]/15 text-[#00F0FF] border border-[#00F0FF]/30'
-                : 'bg-white/5 text-[#94A3B8] border border-white/10'
+                ? 'bg-[#00E5FF]/20 text-[#00E5FF] border border-[#00E5FF]/40'
+                : 'bg-[#1E2433] text-[#94A3B8] border border-[#2A354A]'
             }`}
           >
             {activeMetrics.isXMode ? 'X-MODE' : 'Z-MODE'}
@@ -211,9 +241,9 @@ export default function TelemetryChart({
         </div>
       </div>
 
-      {/* 3. SVG Multi-Channel Telemetry Graph with CAD Grid */}
-      <div className="relative p-4 bg-[#05070B] overflow-hidden select-none technical-grid">
-        {/* Floating Glass Tooltip at Crosshair */}
+      {/* 3. SVG Multi-Channel Telemetry Graph with Dual-Density Grid */}
+      <div className="relative p-2 bg-[#07080A] overflow-hidden select-none">
+        {/* Floating Tooltip at Crosshair */}
         <div
           className="absolute top-2 pointer-events-none transition-all duration-75 z-20 hidden sm:block"
           style={{
@@ -221,20 +251,20 @@ export default function TelemetryChart({
             transform: 'translateX(-50%)',
           }}
         >
-          <div className="obsidian-pill px-3 py-1 rounded-xl shadow-2xl border border-white/15 text-[11px] font-mono whitespace-nowrap flex items-center gap-2 backdrop-blur-xl">
-            <span className="text-[#00F0FF] font-black">{activeMetrics.simSpeed} km/h</span>
-            <span className="text-white/20">•</span>
+          <div className="bg-[#0D0F13] px-2.5 py-0.5 rounded-[2px] border border-[#1E222B] text-[10px] font-mono whitespace-nowrap flex items-center gap-1.5 shadow-none">
+            <span className="text-[#00E5FF] font-bold tabular">{activeMetrics.simSpeed} km/h</span>
+            <span className="text-[#3E485B]">|</span>
             <span className="text-white font-bold">G{activeMetrics.gear}</span>
-            <span className="text-white/20">•</span>
-            <span className="text-[#00E676]">{activeMetrics.throttle}% THR</span>
+            <span className="text-[#3E485B]">|</span>
+            <span className="text-[#00E676] tabular">{activeMetrics.throttle}% THR</span>
             {activeMetrics.brake > 0 && (
               <>
-                <span className="text-white/20">•</span>
-                <span className="text-[#FF2800]">{activeMetrics.brake}% BRK</span>
+                <span className="text-[#3E485B]">|</span>
+                <span className="text-[#FF2A54] tabular">{activeMetrics.brake}% BRK</span>
               </>
             )}
-            <span className="text-white/20">•</span>
-            <span className="text-[#94A3B8]">{activeMetrics.distance.toLocaleString()}m</span>
+            <span className="text-[#3E485B]">|</span>
+            <span className="text-[#94A3B8] tabular">{activeMetrics.distance.toLocaleString()}m</span>
           </div>
         </div>
 
@@ -249,9 +279,30 @@ export default function TelemetryChart({
           className="w-full h-auto cursor-crosshair"
           onMouseMove={handleMouseMove}
         >
-          {/* Base Grid Lines */}
-          <line x1="0" y1="0" x2={svgWidth} y2="0" stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-          <line x1="0" y1={speedH} x2={svgWidth} y2={speedH} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
+          {/* Dual-Density Vertical Gridlines */}
+          {verticalGridlines.map((vl, idx) => (
+            <g key={`vgrid-${idx}`}>
+              <line
+                x1={vl.x}
+                y1="0"
+                x2={vl.x}
+                y2="500"
+                stroke={vl.isMajor ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.03)'}
+                strokeWidth={vl.isMajor ? '1' : '0.5'}
+              />
+              {vl.isMajor && (
+                <text
+                  x={vl.x + 3}
+                  y="12"
+                  fill="#475569"
+                  fontSize="8"
+                  fontFamily="monospace"
+                >
+                  {vl.label}
+                </text>
+              )}
+            </g>
+          ))}
 
           {/* Sector Division Lines */}
           {simulation.sectorBoundsM && (
@@ -264,56 +315,62 @@ export default function TelemetryChart({
                 stroke="#FFB300"
                 strokeWidth="1"
                 strokeDasharray="4 4"
-                strokeOpacity="0.3"
+                strokeOpacity="0.4"
               />
               <line
                 x1={scaleX(simulation.sectorBoundsM[1])}
                 y1="0"
                 x2={scaleX(simulation.sectorBoundsM[1])}
                 y2="500"
-                stroke="#00F0FF"
+                stroke="#00E5FF"
                 strokeWidth="1"
                 strokeDasharray="4 4"
-                strokeOpacity="0.3"
+                strokeOpacity="0.4"
               />
             </>
           )}
 
           {/* SPEED CHANNEL */}
           {(activeChannel === 'all' || activeChannel === 'speed') && (
-            <g>
-              <text x="8" y="20" fill="#64748B" fontSize="9" fontFamily="monospace" fontWeight="bold">
-                350 km/h
-              </text>
-              <line x1="0" y1={scaleSpeedY(350)} x2={svgWidth} y2={scaleSpeedY(350)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="2 4" />
-              <text x="8" y={scaleSpeedY(200) - 4} fill="#64748B" fontSize="9" fontFamily="monospace" fontWeight="bold">
-                200 km/h
-              </text>
-              <line x1="0" y1={scaleSpeedY(200)} x2={svgWidth} y2={scaleSpeedY(200)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="2 4" />
-              <text x="8" y={scaleSpeedY(80) - 4} fill="#64748B" fontSize="9" fontFamily="monospace" fontWeight="bold">
-                80 km/h
-              </text>
-              <line x1="0" y1={scaleSpeedY(80)} x2={svgWidth} y2={scaleSpeedY(80)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="2 4" />
+            <g id="channel-speed">
+              {/* Channel Divider */}
+              <line x1="0" y1={speedH} x2={svgWidth} y2={speedH} stroke="#1E222B" strokeWidth="1" />
 
-              {/* FastF1 Benchmark Speed Trace (Rosso Corsa Red) */}
+              {/* Pinned Y-Axis Unit Scale Labels */}
+              <text x="6" y="16" fill="#00E5FF" fontSize="9" fontFamily="monospace" fontWeight="bold">
+                SPEED (km/h)
+              </text>
+              <text x="6" y={scaleSpeedY(350) + 3} fill="#64748B" fontSize="8" fontFamily="monospace">
+                350
+              </text>
+              <line x1="0" y1={scaleSpeedY(350)} x2={svgWidth} y2={scaleSpeedY(350)} stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="2 4" />
+              <text x="6" y={scaleSpeedY(200) + 3} fill="#64748B" fontSize="8" fontFamily="monospace">
+                200
+              </text>
+              <line x1="0" y1={scaleSpeedY(200)} x2={svgWidth} y2={scaleSpeedY(200)} stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="2 4" />
+              <text x="6" y={scaleSpeedY(80) + 3} fill="#64748B" fontSize="8" fontFamily="monospace">
+                80
+              </text>
+              <line x1="0" y1={scaleSpeedY(80)} x2={svgWidth} y2={scaleSpeedY(80)} stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="2 4" />
+
+              {/* FastF1 Pole Benchmark Trace (#FF2A54 - Solid 1.5px) */}
               {realSpeedPath && (
                 <polyline
                   points={realSpeedPath}
                   fill="none"
-                  stroke="#FF2800"
-                  strokeWidth="1.8"
-                  strokeOpacity="0.8"
+                  stroke="#FF2A54"
+                  strokeWidth="1.5"
+                  strokeOpacity="0.85"
                 />
               )}
 
-              {/* Simulation Speed Trace (Electric Cyan) */}
+              {/* Simulated Speed Trace (#00E5FF - Solid 1.5px, NO drop-shadow glow) */}
               {simSpeedPath && (
                 <polyline
                   points={simSpeedPath}
                   fill="none"
-                  stroke="#00F0FF"
-                  strokeWidth="2.5"
-                  className="filter drop-shadow-[0_0_8px_rgba(0,240,255,0.4)]"
+                  stroke="#00E5FF"
+                  strokeWidth="1.5"
                 />
               )}
             </g>
@@ -321,27 +378,45 @@ export default function TelemetryChart({
 
           {/* PEDALS CHANNEL */}
           {(activeChannel === 'all' || activeChannel === 'pedals') && (
-            <g transform={`translate(0, ${activeChannel === 'all' ? speedH + 20 : 0})`}>
-              <line x1="0" y1={pedalsH} x2={svgWidth} y2={pedalsH} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-              <text x="8" y="16" fill="#64748B" fontSize="9" fontFamily="monospace" fontWeight="bold">
-                PEDALS 100%
+            <g id="channel-pedals" transform={`translate(0, ${activeChannel === 'all' ? speedH + 20 : 0})`}>
+              <line x1="0" y1={pedalsH} x2={svgWidth} y2={pedalsH} stroke="#1E222B" strokeWidth="1" />
+              <text x="6" y="14" fill="#00E676" fontSize="9" fontFamily="monospace" fontWeight="bold">
+                PEDALS (%)
               </text>
+              <text x="6" y="28" fill="#64748B" fontSize="8" fontFamily="monospace">
+                100%
+              </text>
+              <text x="6" y={pedalsH - 4} fill="#64748B" fontSize="8" fontFamily="monospace">
+                0%
+              </text>
+
               {throttlePath && (
-                <polyline points={throttlePath} fill="none" stroke="#00E676" strokeWidth="1.8" />
+                <polyline points={throttlePath} fill="none" stroke="#00E676" strokeWidth="1.5" />
               )}
               {brakePath && (
-                <polyline points={brakePath} fill="none" stroke="#FF2800" strokeWidth="1.8" />
+                <polyline points={brakePath} fill="none" stroke="#FF2A54" strokeWidth="1.5" />
               )}
             </g>
           )}
 
           {/* G-FORCE CHANNEL */}
           {(activeChannel === 'all' || activeChannel === 'gforce') && (
-            <g transform={`translate(0, ${activeChannel === 'all' ? speedH + pedalsH + 40 : 0})`}>
-              <line x1="0" y1={gforceH / 2} x2={svgWidth} y2={gforceH / 2} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-              <text x="8" y="16" fill="#64748B" fontSize="9" fontFamily="monospace" fontWeight="bold">
-                G-FORCE (±5G)
+            <g id="channel-gforce" transform={`translate(0, ${activeChannel === 'all' ? speedH + pedalsH + 40 : 0})`}>
+              <line x1="0" y1={gforceH} x2={svgWidth} y2={gforceH} stroke="#1E222B" strokeWidth="1" />
+              <line x1="0" y1={gforceH / 2} x2={svgWidth} y2={gforceH / 2} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+              <text x="6" y="14" fill="#FFB300" fontSize="9" fontFamily="monospace" fontWeight="bold">
+                G-FORCE (G)
               </text>
+              <text x="6" y="26" fill="#64748B" fontSize="8" fontFamily="monospace">
+                +4G
+              </text>
+              <text x="6" y={gforceH / 2 - 2} fill="#64748B" fontSize="8" fontFamily="monospace">
+                0G
+              </text>
+              <text x="6" y={gforceH - 4} fill="#64748B" fontSize="8" fontFamily="monospace">
+                -4G
+              </text>
+
               <polyline
                 points={simDist
                   .map((d, i) => `${scaleX(d).toFixed(1)},${scaleGY(simulation.gLat[i] || 0).toFixed(1)}`)
@@ -355,7 +430,7 @@ export default function TelemetryChart({
                   .map((d, i) => `${scaleX(d).toFixed(1)},${scaleGY(simulation.gLong[i] || 0).toFixed(1)}`)
                   .join(' ')}
                 fill="none"
-                stroke="#00F0FF"
+                stroke="#00E5FF"
                 strokeWidth="1.5"
               />
             </g>
@@ -363,13 +438,20 @@ export default function TelemetryChart({
 
           {/* ERS SOC CHANNEL */}
           {(activeChannel === 'all' || activeChannel === 'ers') && (
-            <g transform={`translate(0, ${activeChannel === 'all' ? speedH + pedalsH + gforceH + 60 : 0})`}>
-              <line x1="0" y1={ersH} x2={svgWidth} y2={ersH} stroke="rgba(255,255,255,0.08)" strokeWidth="1" />
-              <text x="8" y="16" fill="#64748B" fontSize="9" fontFamily="monospace" fontWeight="bold">
-                ERS BATTERY STORE (MJ)
+            <g id="channel-ers" transform={`translate(0, ${activeChannel === 'all' ? speedH + pedalsH + gforceH + 60 : 0})`}>
+              <line x1="0" y1={ersH} x2={svgWidth} y2={ersH} stroke="#1E222B" strokeWidth="1" />
+              <text x="6" y="14" fill="#B829EA" fontSize="9" fontFamily="monospace" fontWeight="bold">
+                ERS ENERGY (MJ)
               </text>
+              <text x="6" y="26" fill="#64748B" fontSize="8" fontFamily="monospace">
+                5.4 MJ
+              </text>
+              <text x="6" y={ersH - 4} fill="#64748B" fontSize="8" fontFamily="monospace">
+                0 MJ
+              </text>
+
               {socPath && (
-                <polyline points={socPath} fill="none" stroke="#B829EA" strokeWidth="2" />
+                <polyline points={socPath} fill="none" stroke="#B829EA" strokeWidth="1.5" />
               )}
             </g>
           )}
@@ -381,32 +463,32 @@ export default function TelemetryChart({
             x2={crosshairX}
             y2="500"
             stroke="#FFFFFF"
-            strokeWidth="1.5"
+            strokeWidth="1.2"
             strokeDasharray="3 3"
-            strokeOpacity="0.8"
+            strokeOpacity="0.75"
           />
         </svg>
       </div>
 
       {/* 4. Bottom Speed Trap & Sectors Benchmark Footer */}
-      <div className="px-4 py-2.5 bg-[#080B12]/90 border-t border-white/5 flex flex-wrap items-center justify-between text-xs mono text-[#94A3B8]">
-        <div className="flex items-center gap-4">
+      <div className="px-3 py-1.5 bg-[#0D0F13] border-t border-[#1E222B] flex flex-wrap items-center justify-between text-xs text-[#94A3B8]">
+        <div className="flex items-center gap-3">
           <span>
-            Speed Trap: <strong className="text-white">{simulation.speedTrapKmh.toFixed(1)} km/h</strong>
+            Speed Trap: <strong className="text-white tabular">{simulation.speedTrapKmh.toFixed(1)} km/h</strong>
           </span>
-          <span className="text-white/10">|</span>
+          <span className="text-[#1E222B]">|</span>
           <span>
-            S1: <strong className="text-[#FFB300]">{simulation.sectorTimes[0].toFixed(3)}s</strong>
-          </span>
-          <span>
-            S2: <strong className="text-[#00F0FF]">{simulation.sectorTimes[1].toFixed(3)}s</strong>
+            S1: <strong className="text-[#FFB300] tabular">{simulation.sectorTimes[0].toFixed(3)}s</strong>
           </span>
           <span>
-            S3: <strong className="text-[#B829EA]">{simulation.sectorTimes[2].toFixed(3)}s</strong>
+            S2: <strong className="text-[#00E5FF] tabular">{simulation.sectorTimes[1].toFixed(3)}s</strong>
+          </span>
+          <span>
+            S3: <strong className="text-[#B829EA] tabular">{simulation.sectorTimes[2].toFixed(3)}s</strong>
           </span>
         </div>
         <div>
-          ERS Clipped Distance: <strong className="text-[#FFB300]">{simulation.ers.clipDistanceM.toFixed(0)}m</strong>
+          ERS Clipped: <strong className="text-[#FFB300] tabular">{simulation.ers.clipDistanceM.toFixed(0)}m</strong>
         </div>
       </div>
     </div>

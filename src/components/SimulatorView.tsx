@@ -7,7 +7,7 @@ import { simulateLap } from '../engine/lapSim';
 import { COMPOUNDS, gripMultiplier } from '../engine/tyreModel';
 import TrackMap from './TrackMap';
 import TelemetryChart from './TelemetryChart';
-import { Battery, Zap, Gauge, Wind } from 'lucide-react';
+import { Battery } from 'lucide-react';
 
 interface SimulatorViewProps {
   circuit: CircuitData;
@@ -24,19 +24,18 @@ function SectorSparkline({
 }) {
   if (!speeds || speeds.length < 2) return null;
 
-  // Downsample to max 40 points for crisp lightweight SVG
-  const step = Math.max(1, Math.floor(speeds.length / 40));
+  const step = Math.max(1, Math.floor(speeds.length / 35));
   const samples = speeds.filter((_, idx) => idx % step === 0);
   const minSpeed = Math.min(...samples);
   const maxSpeed = Math.max(...samples);
   const range = maxSpeed - minSpeed || 1;
 
-  const width = 110;
-  const height = 22;
+  const width = 100;
+  const height = 18;
   const points = samples
     .map((s, i) => {
       const x = (i / (samples.length - 1)) * width;
-      const y = height - ((s - minSpeed) / range) * (height - 4) - 2;
+      const y = height - ((s - minSpeed) / range) * (height - 3) - 1.5;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(' ');
@@ -45,13 +44,13 @@ function SectorSparkline({
     <div className="relative mt-1">
       <svg
         viewBox={`0 0 ${width} ${height}`}
-        className="w-full h-5 overflow-visible"
+        className="w-full h-4 overflow-visible"
         preserveAspectRatio="none"
       >
         <polyline
           fill="none"
           stroke={color}
-          strokeWidth="1.75"
+          strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
           points={points}
@@ -122,96 +121,96 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
   }, [simulation]);
 
   return (
-    <div className="space-y-4">
-      {/* 1. Hero KPI Strip (Ultra-Minimalist Seamless Glass Dock) */}
-      <div className="obsidian-card rounded-2xl p-4 sm:px-6 shadow-2xl backdrop-blur-xl border border-white/10">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 lg:gap-6 items-center divide-y lg:divide-y-0 lg:divide-x divide-white/5">
+    <div className="space-y-2 w-full font-mono select-none">
+      {/* 1. Hero KPI Strip (Utilitarian Flat Dock with Hairline Dividers) */}
+      <div className="bg-[#0D0F13] border border-[#1E222B] rounded-[2px] p-2.5 sm:px-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 lg:gap-5 items-center divide-y lg:divide-y-0 lg:divide-x divide-[#1E222B]">
           {/* A. Massive Simulated Lap Time & Delta */}
-          <div className="col-span-2 sm:col-span-1 lg:col-span-1 pt-1 lg:pt-0">
-            <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#64748B] block">
+          <div className="col-span-2 sm:col-span-1 lg:col-span-1 pt-0">
+            <span className="text-[9px] font-bold tracking-widest uppercase text-[#64748B] block">
               SIMULATED LAP TIME
             </span>
-            <div className="flex items-baseline gap-2.5 mt-0.5">
-              <span className="font-display font-black text-3xl sm:text-4xl text-white tabular tracking-tight">
+            <div className="flex items-baseline gap-2 mt-0.5">
+              <span className="font-display font-black text-2xl sm:text-3xl text-white tabular tracking-tight">
                 {formatLapTime(simulation.lapTime)}
               </span>
             </div>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-1.5 mt-0.5">
               <span
-                className={`text-[11px] font-mono font-black px-2 py-0.5 rounded-full ${
+                className={`text-[10px] font-bold px-1.5 py-0.2 rounded-[1px] tabular ${
                   isFasterThanPole
-                    ? 'bg-[#00E676]/20 text-[#00E676] border border-[#00E676]/40 shadow-[0_0_10px_rgba(0,230,118,0.2)]'
-                    : 'bg-[#FF2800]/20 text-[#FF2800] border border-[#FF2800]/40 shadow-[0_0_10px_rgba(255,40,0,0.2)]'
+                    ? 'bg-[#00E676]/20 text-[#00E676] border border-[#00E676]/40'
+                    : 'bg-[#FF2A54]/20 text-[#FF2A54] border border-[#FF2A54]/40'
                 }`}
               >
-                {isFasterThanPole ? '' : '+'}
-                {poleDelta.toFixed(3)}s vs Pole
+                {isFasterThanPole ? '-' : '+'}
+                {Math.abs(poleDelta).toFixed(3)}s vs Pole
               </span>
-              <span className="text-[10px] text-[#64748B] font-mono hidden sm:inline">
+              <span className="text-[10px] text-[#64748B] tabular hidden sm:inline">
                 {circuit.poleDriver} {formatLapTime(circuit.poleLapTime)}
               </span>
             </div>
           </div>
 
           {/* B. Speed Trap V_Max */}
-          <div className="pt-3 lg:pt-0 lg:pl-6">
-            <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#64748B] block">
+          <div className="pt-2 lg:pt-0 lg:pl-5">
+            <span className="text-[9px] font-bold tracking-widest uppercase text-[#64748B] block">
               SPEED TRAP V_MAX
             </span>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="font-display font-black text-2xl sm:text-3xl text-white tabular">
+              <span className="font-display font-black text-xl sm:text-2xl text-white tabular">
                 {simulation.speedTrapKmh.toFixed(1)}
               </span>
-              <span className="text-xs font-mono text-[#64748B]">km/h</span>
+              <span className="text-xs text-[#64748B]">km/h</span>
             </div>
-            <span className="text-[11px] text-[#00F0FF] font-mono mt-0.5 block">
-              Official Trap: {circuit.topSpeedKmh} km/h
+            <span className="text-[10px] text-[#00E5FF] tabular mt-0.5 block">
+              Benchmark: {circuit.topSpeedKmh} km/h
             </span>
           </div>
 
           {/* C. Sector 1 (Amber) */}
-          <div className="pt-3 lg:pt-0 lg:pl-6">
+          <div className="pt-2 lg:pt-0 lg:pl-5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#64748B]">
+              <span className="text-[9px] font-bold tracking-widest uppercase text-[#64748B]">
                 SECTOR 1
               </span>
-              <span className="text-[9px] font-mono text-[#64748B]">
+              <span className="text-[9px] text-[#64748B] tabular">
                 {(simulation.sectorBoundsM[0] / 1000).toFixed(2)}km
               </span>
             </div>
-            <div className="font-display font-black text-2xl text-[#FFB300] tabular mt-0.5">
+            <div className="font-display font-bold text-xl text-[#FFB300] tabular mt-0.5">
               {simulation.sectorTimes[0].toFixed(3)}s
             </div>
             <SectorSparkline speeds={sectorSpeeds.s1} color="#FFB300" />
           </div>
 
           {/* D. Sector 2 (Cyan) */}
-          <div className="pt-3 lg:pt-0 lg:pl-6">
+          <div className="pt-2 lg:pt-0 lg:pl-5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#64748B]">
+              <span className="text-[9px] font-bold tracking-widest uppercase text-[#64748B]">
                 SECTOR 2
               </span>
-              <span className="text-[9px] font-mono text-[#64748B]">
+              <span className="text-[9px] text-[#64748B] tabular">
                 {((simulation.sectorBoundsM[1] - simulation.sectorBoundsM[0]) / 1000).toFixed(2)}km
               </span>
             </div>
-            <div className="font-display font-black text-2xl text-[#00F0FF] tabular mt-0.5">
+            <div className="font-display font-bold text-xl text-[#00E5FF] tabular mt-0.5">
               {simulation.sectorTimes[1].toFixed(3)}s
             </div>
-            <SectorSparkline speeds={sectorSpeeds.s2} color="#00F0FF" />
+            <SectorSparkline speeds={sectorSpeeds.s2} color="#00E5FF" />
           </div>
 
           {/* E. Sector 3 (Electric Violet) */}
-          <div className="pt-3 lg:pt-0 lg:pl-6">
+          <div className="pt-2 lg:pt-0 lg:pl-5">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-mono font-bold tracking-widest uppercase text-[#64748B]">
+              <span className="text-[9px] font-bold tracking-widest uppercase text-[#64748B]">
                 SECTOR 3
               </span>
-              <span className="text-[9px] font-mono text-[#64748B]">
+              <span className="text-[9px] text-[#64748B] tabular">
                 {((circuit.lapLengthM - simulation.sectorBoundsM[1]) / 1000).toFixed(2)}km
               </span>
             </div>
-            <div className="font-display font-black text-2xl text-[#B829EA] tabular mt-0.5">
+            <div className="font-display font-bold text-xl text-[#B829EA] tabular mt-0.5">
               {simulation.sectorTimes[2].toFixed(3)}s
             </div>
             <SectorSparkline speeds={sectorSpeeds.s3} color="#B829EA" />
@@ -219,33 +218,30 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
         </div>
       </div>
 
-      {/* 2. Tactical Vehicle Calibration Deck (F1 Rotary-Inspired Dock) */}
-      <div className="obsidian-card rounded-2xl p-3 sm:px-5 shadow-2xl backdrop-blur-xl border border-white/10">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* 2. Tactical Vehicle Calibration Deck */}
+      <div className="bg-[#0D0F13] border border-[#1E222B] rounded-[2px] px-3 py-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Deck Title */}
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#FF2800] animate-pulse shadow-[0_0_8px_#FF2800]" />
-            <span className="font-display text-xs font-black uppercase tracking-widest text-white">
-              VEHICLE CALIBRATION DECK
-            </span>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-[#94A3B8] border border-white/10 font-mono">
-              ROTARY HARDWARE INTERFACE
+            <span className="w-1.5 h-1.5 rounded-full bg-[#00E5FF] inline-block" />
+            <span className="text-xs font-bold uppercase tracking-wider text-white">
+              VEHICLE CALIBRATION
             </span>
           </div>
 
           {/* Controls Dock */}
-          <div className="flex flex-wrap items-center gap-5 sm:gap-7 text-xs font-mono">
+          <div className="flex flex-wrap items-center gap-5 text-xs">
             {/* Pirelli Sidewall Ring Badges */}
-            <div className="flex items-center gap-2.5">
-              <span className="text-[#64748B] font-bold text-[10px] uppercase tracking-wider">PIRELLI TYRE:</span>
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[#64748B] font-bold text-[10px] uppercase">TYRE:</span>
+              <div className="flex items-center gap-1">
                 {(
                   [
-                    { id: 'soft', label: 'S', color: '#FF2800', name: 'Soft' },
+                    { id: 'soft', label: 'S', color: '#FF2A54', name: 'Soft' },
                     { id: 'medium', label: 'M', color: '#FFB300', name: 'Medium' },
                     { id: 'hard', label: 'H', color: '#FFFFFF', name: 'Hard' },
                     { id: 'inter', label: 'I', color: '#00E676', name: 'Intermediate' },
-                    { id: 'wet', label: 'W', color: '#00F0FF', name: 'Full Wet' },
+                    { id: 'wet', label: 'W', color: '#00E5FF', name: 'Full Wet' },
                   ] as const
                 ).map((t) => {
                   const isSel = compound === t.id;
@@ -255,30 +251,18 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
                       type="button"
                       onClick={() => setCompound(t.id)}
                       title={`${t.name} Compound`}
-                      className={`relative flex items-center justify-center w-7 h-7 rounded-full font-mono font-black text-xs transition-all cursor-pointer ${
+                      className={`relative flex items-center justify-center w-6 h-6 rounded-[2px] font-black text-[11px] transition-colors cursor-pointer border ${
                         isSel
-                          ? 'scale-110 shadow-lg'
-                          : 'opacity-70 hover:opacity-100 hover:scale-105'
+                          ? 'border-current'
+                          : 'border-[#1E222B] bg-[#14171E] opacity-70 hover:opacity-100'
                       }`}
                       style={{
-                        background: isSel ? '#12151E' : '#090C14',
-                        boxShadow: isSel ? `0 0 12px ${t.color}50` : undefined,
+                        backgroundColor: isSel ? `${t.color}20` : undefined,
+                        color: t.color,
+                        borderColor: isSel ? t.color : undefined,
                       }}
                     >
-                      {/* Authentic Sidewall Ring */}
-                      <svg viewBox="0 0 32 32" className="absolute inset-0 w-full h-full pointer-events-none">
-                        <circle
-                          cx="16"
-                          cy="16"
-                          r="13"
-                          fill="none"
-                          stroke={t.color}
-                          strokeWidth={isSel ? '3' : '2'}
-                          strokeDasharray="18 4 18 4"
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <span style={{ color: isSel ? t.color : '#94A3B8' }}>{t.label}</span>
+                      {t.label}
                     </button>
                   );
                 })}
@@ -287,14 +271,14 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
 
             {/* Fuel Load Segmented Switch */}
             <div className="flex items-center gap-2">
-              <span className="text-[#64748B] font-bold text-[10px] uppercase tracking-wider">FUEL LOAD:</span>
-              <div className="flex items-center bg-[#080B12] rounded-xl p-0.5 border border-white/10 shadow-inner">
+              <span className="text-[#64748B] font-bold text-[10px] uppercase">FUEL:</span>
+              <div className="flex items-center bg-[#14171E] rounded-[2px] p-0.5 border border-[#1E222B]">
                 <button
                   type="button"
                   onClick={() => setTrim('qualifying')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  className={`px-2 py-0.5 rounded-[1px] text-[10px] font-bold transition-colors cursor-pointer ${
                     trim === 'qualifying'
-                      ? 'bg-[#FF2800] text-white shadow-[0_0_10px_rgba(255,40,0,0.4)]'
+                      ? 'bg-[#FF2A54] text-white'
                       : 'text-[#64748B] hover:text-[#94A3B8]'
                   }`}
                 >
@@ -303,9 +287,9 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
                 <button
                   type="button"
                   onClick={() => setTrim('race')}
-                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  className={`px-2 py-0.5 rounded-[1px] text-[10px] font-bold transition-colors cursor-pointer ${
                     trim === 'race'
-                      ? 'bg-[#00F0FF] text-[#050507] shadow-[0_0_10px_rgba(0,240,255,0.4)]'
+                      ? 'bg-[#00E5FF] text-[#07080A]'
                       : 'text-[#64748B] hover:text-[#94A3B8]'
                   }`}
                 >
@@ -316,8 +300,8 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
 
             {/* Aero Trim Precision Dial */}
             <div className="flex items-center gap-2">
-              <span className="text-[#64748B] font-bold text-[10px] uppercase tracking-wider">AERO TRIM:</span>
-              <div className="flex items-center gap-2 bg-[#080B12] px-2.5 py-1 rounded-xl border border-white/10">
+              <span className="text-[#64748B] font-bold text-[10px] uppercase">AERO TRIM:</span>
+              <div className="flex items-center gap-2 bg-[#14171E] px-2 py-0.5 rounded-[2px] border border-[#1E222B]">
                 <input
                   type="range"
                   min={-10}
@@ -325,9 +309,9 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
                   step={2}
                   value={aeroOffset}
                   onChange={(e) => setAeroOffset(parseInt(e.target.value))}
-                  className="w-20 accent-[#FF2800] cursor-pointer h-1.5 bg-[#161B28] rounded-lg"
+                  className="w-16 accent-[#00E5FF] cursor-pointer h-1 bg-[#0D0F13] rounded-[1px]"
                 />
-                <span className="w-10 text-white font-bold text-right tabular text-[11px]">
+                <span className="w-8 text-white font-bold text-right tabular text-[10px]">
                   {aeroOffset > 0 ? `+${aeroOffset}%` : `${aeroOffset}%`}
                 </span>
               </div>
@@ -336,10 +320,10 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
         </div>
       </div>
 
-      {/* 3. Main Split-Screen Layout (40% GPS Track Map / 60% Telemetry Oscilloscope) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Panel: 40% (5 cols): 3D Elevation & Ghost Map */}
-        <div className="lg:col-span-5 space-y-4">
+      {/* 3. Main Split-Screen Layout (40% Track Map / 60% Telemetry Oscilloscope with 8px gap) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-start w-full">
+        {/* Left Panel: 40% (5 cols): 2D/3D Circuit Map */}
+        <div className="lg:col-span-5 space-y-2">
           <TrackMap
             circuit={circuit}
             activeDistanceM={hoverDistM}
@@ -348,13 +332,13 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
           />
 
           {/* ERS Energy Telemetry Module */}
-          <div className="obsidian-card rounded-2xl p-3.5 shadow-2xl backdrop-blur-xl border border-white/10 text-xs font-mono">
-            <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-2">
-              <span className="font-bold text-white flex items-center gap-1.5 text-xs">
-                <Battery className="w-3.5 h-3.5 text-[#FFB300]" />
+          <div className="bg-[#0D0F13] border border-[#1E222B] rounded-[2px] p-2.5 text-xs">
+            <div className="flex items-center justify-between border-b border-[#1E222B] pb-1.5 mb-1.5">
+              <span className="font-bold text-white flex items-center gap-1.5 text-[11px]">
+                <Battery className="w-3.5 h-3.5 text-[#FFB300]" strokeWidth={1.5} />
                 HYBRID ERS ENERGY TELEMETRY
               </span>
-              <span className="text-[10px] text-[#00F0FF] font-bold">
+              <span className="text-[10px] text-[#00E5FF] font-bold">
                 {era === '2025' ? '4.0 MJ BUDGET (MGU-K)' : '5.4 MJ STORE (ACTIVE REGEN)'}
               </span>
             </div>

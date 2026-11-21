@@ -133,6 +133,7 @@ export default function TrackMap({
     startFinishLine,
     cornerLabels,
     drsSegments,
+    speedTrapCoord,
     carCoord,
     ghostCoord,
     carTrailPath,
@@ -156,6 +157,7 @@ export default function TrackMap({
         startFinishLine: null,
         cornerLabels: [],
         drsSegments: [],
+        speedTrapCoord: null,
         carCoord: null,
         ghostCoord: null,
         carTrailPath: '',
@@ -489,6 +491,21 @@ export default function TrackMap({
       deltaS = (simLapTime - sessionStats.lapTime) * progressFrac;
     }
 
+    // Speed Trap Coordinate Calculation
+    let speedTrapCoord: { x: number; y: number; speed: number } | null = null;
+    if (speeds && speeds.length > 0) {
+      let maxSpd = 0;
+      let maxIdx = 0;
+      for (let i = 0; i < speeds.length; i++) {
+        if (speeds[i] > maxSpd) {
+          maxSpd = speeds[i];
+          maxIdx = i;
+        }
+      }
+      const stp = toSvg(xs[maxIdx], ys[maxIdx]);
+      speedTrapCoord = { x: stp.x, y: stp.y, speed: Math.round(maxSpd) };
+    }
+
     return {
       pathData: fullD,
       segmentsPath: segs,
@@ -496,6 +513,7 @@ export default function TrackMap({
       startFinishLine: sfLine,
       cornerLabels: corners,
       drsSegments: drsLines,
+      speedTrapCoord,
       carCoord: car,
       ghostCoord: ghost,
       carTrailPath: trailD,
@@ -537,29 +555,29 @@ export default function TrackMap({
   );
 
   return (
-    <div className={`obsidian-card rounded-2xl border border-white/10 flex flex-col shadow-2xl overflow-hidden backdrop-blur-xl ${className}`}>
-      {/* 1. Sleek Command Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-white/10 bg-[#0A0D15]/80">
+    <div className={`bg-[#0D0F13] border border-[#1E222B] rounded-[2px] flex flex-col overflow-hidden select-none font-mono ${className}`}>
+      {/* 1. Engineering Command Header Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-[#1E222B] bg-[#0A0C10]">
         <div className="flex items-center gap-2.5">
-          <span className="w-2 h-2 rounded-full bg-[#00E676] animate-pulse shadow-[0_0_8px_#00E676]" />
-          <span className="text-xs font-black tracking-wider text-white uppercase mono">
-            3D CIRCUIT TRACK MAP // {circuit.name.toUpperCase()}
+          <span className="w-2 h-2 rounded-full bg-[#00E676] animate-pulse inline-block" />
+          <span className="text-xs font-bold tracking-wider text-white uppercase">
+            TRACK MAP — {circuit.name.toUpperCase()} GP
           </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 text-[#94A3B8] border border-white/10 mono">
+          <span className="text-[10px] px-1.5 py-0.2 rounded-[1px] bg-[#14171E] text-[#94A3B8] border border-[#1E222B] tabular">
             {Math.round(activeDistanceM).toLocaleString()}m / {Math.round(lapLength).toLocaleString()}m
           </span>
         </div>
 
         {/* View Mode Segmented Switch */}
-        <div className="flex items-center bg-[#05070B] p-0.5 rounded-xl border border-white/10">
+        <div className="flex items-center bg-[#14171E] p-0.5 border border-[#1E222B] rounded-[2px]">
           {(['broadcast', 'elevation', 'heatmap', 'drs', 'sectors'] as const).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setViewMode(mode)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all mono cursor-pointer ${
+              className={`px-2 py-0.5 rounded-[1px] text-[10px] font-bold uppercase transition-colors cursor-pointer ${
                 viewMode === mode
-                  ? 'bg-[#161B28] text-white shadow-[0_0_10px_rgba(255,255,255,0.1)] border border-white/10'
+                  ? 'bg-[#1E2433] text-white border border-[#2D384D]'
                   : 'text-[#64748B] hover:text-[#94A3B8]'
               }`}
             >
@@ -569,23 +587,23 @@ export default function TrackMap({
           <button
             type="button"
             onClick={() => setShowCorners(!showCorners)}
-            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all mono border-l border-white/10 cursor-pointer ${
+            className={`px-2 py-0.5 rounded-[1px] text-[10px] font-bold uppercase transition-colors border-l border-[#1E222B] cursor-pointer ${
               showCorners ? 'text-[#FFB300]' : 'text-[#475569]'
             }`}
             title="Toggle Turn Numbers"
           >
-            Turns
+            TURNS
           </button>
         </div>
       </div>
 
       {/* 2. Driver & Session Selector Strip */}
-      <div className="px-4 py-2.5 bg-[#080B12] border-b border-[#1A2336]/60 flex flex-col gap-2">
+      <div className="px-3 py-1.5 bg-[#0D0F13] border-b border-[#1E222B] flex flex-col gap-1.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           {/* Driver Selection Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
-            <span className="text-[10px] mono font-bold text-[#64748B] uppercase pr-1 flex items-center gap-1">
-              <Radio className="w-3 h-3 text-[#FF8000]" />
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+            <span className="text-[10px] font-bold text-[#64748B] uppercase pr-1 flex items-center gap-1">
+              <Radio className="w-3 h-3 text-[#00E5FF]" strokeWidth={1.5} />
               DRIVER:
             </span>
             {DRIVERS.map((d) => {
@@ -595,13 +613,13 @@ export default function TrackMap({
                   key={d.id}
                   type="button"
                   onClick={() => setSelectedDriverId(d.id)}
-                  className={`flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold mono uppercase transition-all ${
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded-[1px] text-[10px] font-bold uppercase transition-colors border cursor-pointer ${
                     isSelected
-                      ? 'text-white shadow-xs border'
-                      : 'bg-[#101524] text-[#94A3B8] hover:text-white border border-[#1A2336]'
+                      ? 'text-white border-current'
+                      : 'bg-[#14171E] text-[#64748B] hover:text-white border-[#1E222B]'
                   }`}
                   style={{
-                    backgroundColor: isSelected ? `${d.teamColor}20` : undefined,
+                    backgroundColor: isSelected ? `${d.teamColor}25` : undefined,
                     borderColor: isSelected ? d.teamColor : undefined,
                   }}
                 >
@@ -619,28 +637,28 @@ export default function TrackMap({
           <button
             type="button"
             onClick={() => setGhostModeEnabled(!ghostModeEnabled)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold mono transition-all border ${
+            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-[1px] text-[10px] font-bold transition-colors border cursor-pointer ${
               ghostModeEnabled
-                ? 'bg-[#00E676]/10 text-[#00E676] border-[#00E676]/30'
-                : 'bg-[#101524] text-[#64748B] border-[#1A2336]'
+                ? 'bg-[#00E676]/15 text-[#00E676] border-[#00E676]/40'
+                : 'bg-[#14171E] text-[#64748B] border-[#1E222B]'
             }`}
           >
-            <Activity className="w-3 h-3" />
-            {ghostModeEnabled ? 'GHOST ON' : 'GHOST OFF'}
+            <Activity className="w-3 h-3" strokeWidth={1.5} />
+            <span>{ghostModeEnabled ? 'GHOST ON' : 'GHOST OFF'}</span>
           </button>
         </div>
 
         {/* Driver Session Details & Benchmark Readout */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-1.5 text-xs mono text-[#94A3B8]">
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#94A3B8]">
           <div className="flex items-center gap-1">
             {SESSIONS_LIST.map((s) => (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => setSelectedSession(s.id)}
-                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+                className={`px-1.5 py-0.2 rounded-[1px] text-[10px] font-bold transition-colors cursor-pointer ${
                   selectedSession === s.id
-                    ? 'bg-[#1E293B] text-white'
+                    ? 'bg-[#1E2433] text-white border border-[#2D384D]'
                     : 'text-[#64748B] hover:text-[#94A3B8]'
                 }`}
               >
@@ -649,18 +667,18 @@ export default function TrackMap({
             ))}
           </div>
 
-          <div className="flex items-center gap-3 text-[11px]">
+          <div className="flex items-center gap-2.5 text-[11px]">
             <span>
-              <strong className="text-white font-bold">{sessionStats.lapTimeStr}</strong>{' '}
-              <span className={sessionStats.deltaToPole <= 0 ? 'text-[#00E676]' : 'text-[#FFB703]'}>
+              <strong className="text-white font-bold tabular">{sessionStats.lapTimeStr}</strong>{' '}
+              <span className={sessionStats.deltaToPole <= 0 ? 'text-[#00E676]' : 'text-[#FFB300]'}>
                 ({sessionStats.deltaToPole <= 0 ? 'POLE' : `+${sessionStats.deltaToPole.toFixed(3)}s`})
               </span>
             </span>
-            <span className="text-[#1A2336]">|</span>
+            <span className="text-[#1E222B]">|</span>
             <span>
-              SPEED TRAP: <strong className="text-[#00F0FF]">{sessionStats.topSpeedKmh}</strong> km/h
+              SPEED TRAP: <strong className="text-[#00E5FF] tabular">{sessionStats.topSpeedKmh}</strong> km/h
             </span>
-            <span className="text-[#1A2336]">|</span>
+            <span className="text-[#1E222B]">|</span>
             <span className="text-[#64748B]">
               {sessionStats.compound.toUpperCase()} • {sessionStats.fuelKg}kg
             </span>
@@ -668,23 +686,11 @@ export default function TrackMap({
         </div>
       </div>
 
-      {/* 3. Full-Bleed Circuit Canvas (No Obstructing Boxes!) */}
-      <div className="relative w-full aspect-16/11 max-h-[460px] flex items-center justify-center overflow-hidden bg-[#05070B]">
-        {/* Subtle CAD Radar Grid */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-15"
-          style={{
-            backgroundImage: `
-              linear-gradient(to right, rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-              linear-gradient(to bottom, rgba(255, 255, 255, 0.08) 1px, transparent 1px)
-            `,
-            backgroundSize: '36px 36px',
-          }}
-        />
-
+      {/* 3. Full-Bleed Circuit Canvas with Coordinate Crosshair Grid */}
+      <div className="relative w-full aspect-16/11 max-h-[460px] flex items-center justify-center overflow-hidden bg-[#07080A]">
         {/* Minimal North Compass Indicator */}
-        <div className="absolute top-3 right-3 bg-[#0B0F19]/80 border border-[#1A2336] rounded px-2 py-0.5 z-10 mono text-[9px] pointer-events-none flex items-center gap-1 text-[#94A3B8]">
-          <Compass className="w-3 h-3 text-[#00F0FF]" />
+        <div className="absolute top-2 right-2 bg-[#0D0F13] border border-[#1E222B] rounded-[1px] px-1.5 py-0.5 z-10 text-[9px] pointer-events-none flex items-center gap-1 text-[#94A3B8]">
+          <Compass className="w-3 h-3 text-[#00E5FF]" strokeWidth={1.5} />
           <span className="font-bold text-white">N</span>
         </div>
 
@@ -696,35 +702,33 @@ export default function TrackMap({
           onClick={handleTrackClick}
         >
           <defs>
-            <linearGradient id="carTrailGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor={activeDriver.teamColor} stopOpacity="0.0" />
-              <stop offset="100%" stopColor={activeDriver.teamColor} stopOpacity="0.9" />
-            </linearGradient>
-            <filter id="beaconGlow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur in="SourceGraphic" stdDeviation="3.5" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
+            {/* Subtle Coordinate Crosshair Grid Pattern */}
+            <pattern id="coordGrid" width="80" height="80" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="40" x2="80" y2="40" stroke="rgba(255,255,255,0.03)" strokeWidth="0.8" />
+              <line x1="40" y1="0" x2="40" y2="80" stroke="rgba(255,255,255,0.03)" strokeWidth="0.8" />
+              <path d="M 36 40 L 44 40 M 40 36 L 40 44" stroke="rgba(255,255,255,0.12)" strokeWidth="0.8" />
+            </pattern>
           </defs>
+
+          {/* Coordinate Crosshair Grid Background */}
+          <rect width="100%" height="100%" fill="url(#coordGrid)" />
 
           {/* Outer Kerb / Runoff Silhouette */}
           <path
             d={pathData}
             fill="none"
             stroke="#121724"
-            strokeWidth="32"
+            strokeWidth="28"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
 
-          {/* Wide Solid Asphalt Roadway Ribbon */}
+          {/* Solid Asphalt Roadway Ribbon */}
           <path
             d={pathData}
             fill="none"
-            stroke="#2E384D"
-            strokeWidth="22"
+            stroke="#1E2433"
+            strokeWidth="18"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -733,8 +737,8 @@ export default function TrackMap({
           <path
             d={pathData}
             fill="none"
-            stroke="#39455E"
-            strokeWidth="14"
+            stroke="#2A354A"
+            strokeWidth="12"
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeOpacity="0.4"
@@ -746,31 +750,23 @@ export default function TrackMap({
               <path
                 d={pitLanePath}
                 fill="none"
-                stroke="#1E2536"
-                strokeWidth="15"
+                stroke="#151A26"
+                strokeWidth="12"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
               <path
                 d={pitLanePath}
                 fill="none"
-                stroke="#2A354A"
-                strokeWidth="9"
+                stroke="#222C3E"
+                strokeWidth="7"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-              />
-              <path
-                d={pitLanePath}
-                fill="none"
-                stroke="#475569"
-                strokeWidth="1.5"
-                strokeDasharray="6 5"
-                strokeOpacity="0.6"
               />
             </g>
           )}
 
-          {/* Start / Finish Line (//) */}
+          {/* Start / Finish Line */}
           {startFinishLine && (
             <g id="startFinishLine">
               <line
@@ -780,44 +776,42 @@ export default function TrackMap({
                 y2={startFinishLine.y2}
                 stroke="#FFFFFF"
                 strokeWidth="3.5"
-                strokeDasharray="6 3"
+                strokeDasharray="5 3"
                 strokeLinecap="square"
               />
             </g>
           )}
 
-          {/* DRS Zones */}
-          {viewMode === 'drs' &&
-            drsSegments.map((drsD, i) => (
+          {/* Green DRS Zones Highlights Along Straights */}
+          {drsSegments.map((drsD, i) => (
+            <g key={`drs-${i}`}>
               <path
-                key={`drs-${i}`}
                 d={drsD}
                 fill="none"
                 stroke="#00E676"
-                strokeWidth="8"
+                strokeWidth="6"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="animate-pulse"
-                strokeOpacity="0.85"
+                strokeOpacity="0.9"
               />
-            ))}
+            </g>
+          ))}
 
-          {/* 3D Elevation Gradient View (e.g. 41m climb to T1 at COTA) */}
+          {/* 3D Elevation Gradient View */}
           {viewMode === 'elevation' &&
             segmentsPath.map((seg, idx) => (
               <path
                 key={`elev-${idx}`}
                 d={seg.d}
                 fill="none"
-                stroke={seg.elevColor || '#00F0FF'}
-                strokeWidth="7"
+                stroke={seg.elevColor || '#00E5FF'}
+                strokeWidth="6"
                 strokeLinecap="round"
-                className="hover:stroke-white transition-colors"
                 onMouseEnter={() => onHoverDistance && onHoverDistance(seg.dist)}
               />
             ))}
 
-          {/* Sectors */}
+          {/* Sectors View */}
           {viewMode === 'sectors' &&
             segmentsPath.map((seg, idx) => (
               <path
@@ -828,10 +822,10 @@ export default function TrackMap({
                   seg.sector === 1
                     ? '#FFB300'
                     : seg.sector === 2
-                    ? '#00F0FF'
+                    ? '#00E5FF'
                     : '#B829EA'
                 }
-                strokeWidth="8"
+                strokeWidth="6"
                 strokeLinecap="round"
               />
             ))}
@@ -846,7 +840,6 @@ export default function TrackMap({
                 stroke={seg.color}
                 strokeWidth="6"
                 strokeLinecap="round"
-                className="hover:stroke-white transition-colors"
                 onMouseEnter={() => onHoverDistance && onHoverDistance(seg.dist)}
               />
             ))}
@@ -856,36 +849,67 @@ export default function TrackMap({
             <path
               d={ghostTrailPath}
               fill="none"
-              stroke={activeDriver.teamColor}
-              strokeWidth="3.5"
+              stroke="#FF2A54"
+              strokeWidth="2.5"
               strokeLinecap="round"
-              strokeDasharray="6 4"
-              strokeOpacity="0.4"
+              strokeDasharray="4 3"
+              strokeOpacity="0.5"
             />
           )}
 
-          {/* Player Trailing Line */}
+          {/* SIM Player Trailing Line */}
           {carTrailPath && (
             <path
               d={carTrailPath}
               fill="none"
-              stroke={activeDriver.teamColor}
-              strokeWidth="4"
+              stroke="#00E5FF"
+              strokeWidth="3"
               strokeLinecap="round"
-              strokeOpacity="0.9"
+              strokeOpacity="0.8"
             />
+          )}
+
+          {/* Speed Trap Marker Badge */}
+          {speedTrapCoord && (
+            <g transform={`translate(${speedTrapCoord.x}, ${speedTrapCoord.y})`}>
+              <circle r="4" fill="#00E5FF" stroke="#FFFFFF" strokeWidth="1" />
+              <g transform="translate(0, -14)">
+                <rect
+                  x="-18"
+                  y="-7"
+                  width="36"
+                  height="14"
+                  rx="1"
+                  fill="#0D0F13"
+                  stroke="#00E5FF"
+                  strokeWidth="0.8"
+                />
+                <text
+                  x="0"
+                  y="0"
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fill="#00E5FF"
+                  fontSize="7"
+                  fontWeight="bold"
+                  fontFamily="monospace"
+                >
+                  ST {speedTrapCoord.speed}
+                </text>
+              </g>
+            </g>
           )}
 
           {/* Corner Apex Badges (T1, T2...) */}
           {showCorners &&
             cornerLabels.map((c) => (
               <g key={`corner-${c.number}`} transform={`translate(${c.x}, ${c.y})`}>
-                <circle r="8" fill="#0C121E" stroke="#2A3854" strokeWidth="1" />
+                <rect x="-8" y="-6" width="16" height="12" rx="1" fill="#0D0F13" stroke="#2D384D" strokeWidth="0.8" />
                 <text
                   textAnchor="middle"
                   dominantBaseline="central"
                   fill="#94A3B8"
-                  fontSize="7.5"
+                  fontSize="7"
                   fontWeight="bold"
                   fontFamily="monospace"
                 >
@@ -894,34 +918,24 @@ export default function TrackMap({
               </g>
             ))}
 
-          {/* Ghost Car Beacon */}
+          {/* Live GHOST Position Marker */}
           {ghostModeEnabled && ghostCoord && (
             <g transform={`translate(${ghostCoord.x}, ${ghostCoord.y})`}>
               <circle
-                r="16"
-                fill={activeDriver.teamColor}
-                fillOpacity="0.10"
-                stroke={activeDriver.teamColor}
-                strokeWidth="1.5"
-                strokeDasharray="4 3"
-              />
-              <circle
-                r="6.5"
-                fill={activeDriver.teamColor}
-                fillOpacity="0.6"
+                r="6"
+                fill="#FF2A54"
                 stroke="#FFFFFF"
                 strokeWidth="1.5"
               />
-              <g transform="translate(0, -18)">
+              <g transform="translate(0, -14)">
                 <rect
-                  x="-22"
-                  y="-9"
-                  width="44"
-                  height="13"
-                  rx="2"
-                  fill="#080B12"
-                  fillOpacity="0.85"
-                  stroke={activeDriver.teamColor}
+                  x="-18"
+                  y="-6"
+                  width="36"
+                  height="12"
+                  rx="1"
+                  fill="#0D0F13"
+                  stroke="#FF2A54"
                   strokeWidth="0.8"
                 />
                 <text
@@ -930,41 +944,34 @@ export default function TrackMap({
                   textAnchor="middle"
                   dominantBaseline="central"
                   fill="#FFFFFF"
-                  fontSize="7.5"
+                  fontSize="7"
                   fontWeight="bold"
                   fontFamily="monospace"
                 >
-                  {activeDriver.code}
+                  GHOST
                 </text>
               </g>
             </g>
           )}
 
-          {/* Active Car Marker & NOR Tag */}
+          {/* Live SIM Position Marker */}
           {carCoord && (
             <g transform={`translate(${carCoord.x}, ${carCoord.y})`}>
               <circle
-                r="15"
-                fill={activeDriver.teamColor}
-                fillOpacity="0.25"
-                filter="url(#beaconGlow)"
-              />
-              <circle
-                r="8"
-                fill={activeDriver.teamColor}
+                r="7"
+                fill="#00E5FF"
                 stroke="#FFFFFF"
-                strokeWidth="2.5"
+                strokeWidth="2"
               />
-              <g transform="translate(0, -17)">
+              <g transform="translate(0, -14)">
                 <rect
-                  x="-16"
-                  y="-9"
-                  width="32"
-                  height="14"
-                  rx="2.5"
-                  fill="#080B12"
-                  fillOpacity="0.92"
-                  stroke="#FFFFFF"
+                  x="-15"
+                  y="-6"
+                  width="30"
+                  height="12"
+                  rx="1"
+                  fill="#0D0F13"
+                  stroke="#00E5FF"
                   strokeWidth="0.8"
                 />
                 <text
@@ -972,12 +979,12 @@ export default function TrackMap({
                   y="0"
                   textAnchor="middle"
                   dominantBaseline="central"
-                  fill="#FFFFFF"
-                  fontSize="8.5"
+                  fill="#00E5FF"
+                  fontSize="7.5"
                   fontWeight="900"
                   fontFamily="monospace"
                 >
-                  {activeDriver.code}
+                  SIM
                 </text>
               </g>
             </g>
@@ -985,39 +992,39 @@ export default function TrackMap({
         </svg>
       </div>
 
-      {/* 4. Integrated Lower Telemetry Strip (Replaces the Clunky Old Floating HUD!) */}
-      <div className="px-4 py-2 bg-[#0E1321] border-t border-b border-[#1A2336] flex flex-wrap items-center justify-between gap-3 text-xs mono">
-        <div className="flex items-center gap-4">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-[10px] text-[#64748B] font-bold">SPEED</span>
-            <span className="text-white font-black text-base tabular leading-none">
+      {/* 4. Integrated Lower Telemetry Strip */}
+      <div className="px-3 py-1.5 bg-[#0A0C10] border-t border-b border-[#1E222B] flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="flex items-baseline gap-1">
+            <span className="text-[10px] text-[#64748B]">SPD</span>
+            <span className="text-white font-bold text-sm tabular leading-none">
               {currentMetrics.speed}
             </span>
             <span className="text-[10px] text-[#64748B]">km/h</span>
           </div>
 
-          <div className="border-l border-[#1A2336] pl-3 flex items-baseline gap-1.5">
-            <span className="text-[10px] text-[#64748B] font-bold">GEAR</span>
-            <span className="text-[#00F0FF] font-black text-base leading-none">
+          <div className="border-l border-[#1E222B] pl-2.5 flex items-baseline gap-1">
+            <span className="text-[10px] text-[#64748B]">GEAR</span>
+            <span className="text-[#00E5FF] font-bold text-sm leading-none">
               G{currentMetrics.gear}
             </span>
           </div>
 
-          <div className="border-l border-[#1A2336] pl-3 flex items-center gap-2">
+          <div className="border-l border-[#1E222B] pl-2.5 flex items-center gap-2">
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-[#64748B] font-bold">THR</span>
-              <div className="w-12 h-2.5 bg-[#141B2A] rounded-xs overflow-hidden border border-[#1A2336]">
+              <span className="text-[9px] text-[#64748B]">THR</span>
+              <div className="w-10 h-2 bg-[#14171E] rounded-[1px] overflow-hidden border border-[#1E222B]">
                 <div
-                  className="h-full bg-[#00E676] transition-all duration-75"
+                  className="h-full bg-[#00E676]"
                   style={{ width: `${currentMetrics.throttle}%` }}
                 />
               </div>
             </div>
             <div className="flex items-center gap-1">
-              <span className="text-[9px] text-[#64748B] font-bold">BRK</span>
-              <div className="w-8 h-2.5 bg-[#141B2A] rounded-xs overflow-hidden border border-[#1A2336]">
+              <span className="text-[9px] text-[#64748B]">BRK</span>
+              <div className="w-8 h-2 bg-[#14171E] rounded-[1px] overflow-hidden border border-[#1E222B]">
                 <div
-                  className="h-full bg-[#E10600] transition-all duration-75"
+                  className="h-full bg-[#FF2A54]"
                   style={{ width: `${currentMetrics.brake}%` }}
                 />
               </div>
@@ -1027,16 +1034,16 @@ export default function TrackMap({
 
         {/* Ghost Delta Status */}
         {ghostModeEnabled && (
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[#64748B] font-bold">VS GHOST ({activeDriver.code}):</span>
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="text-[10px] text-[#64748B]">DELTA GHOST:</span>
             <span
-              className={`font-black text-xs px-2 py-0.5 rounded ${
+              className={`font-bold text-[11px] px-1.5 py-0.2 rounded-[1px] tabular ${
                 ghostDeltaS <= 0
-                  ? 'text-[#00E676] bg-[#00E676]/15 border border-[#00E676]/30'
-                  : 'text-[#E10600] bg-[#E10600]/15 border border-[#E10600]/30'
+                  ? 'text-[#00E676] bg-[#00E676]/15 border border-[#00E676]/40'
+                  : 'text-[#FF2A54] bg-[#FF2A54]/15 border border-[#FF2A54]/40'
               }`}
             >
-              {ghostDeltaS <= 0 ? '▲ -' : '▼ +'}
+              {ghostDeltaS <= 0 ? '-' : '+'}
               {Math.abs(ghostDeltaS).toFixed(3)}s
             </span>
           </div>
@@ -1044,9 +1051,9 @@ export default function TrackMap({
       </div>
 
       {/* 5. Playback Controls & Scrubber */}
-      <div className="px-4 py-3 bg-[#0A0D15]/90 border-t border-white/5 flex flex-col gap-2">
-        <div className="flex items-center gap-3">
-          <span className="text-[10px] mono text-[#64748B] w-14 tabular">
+      <div className="px-3 py-2 bg-[#0D0F13] flex flex-col gap-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-[#64748B] w-12 tabular">
             {Math.round(activeDistanceM).toLocaleString()}m
           </span>
           <input
@@ -1056,31 +1063,31 @@ export default function TrackMap({
             step={5}
             value={Math.round(activeDistanceM)}
             onChange={(e) => onHoverDistance && onHoverDistance(parseFloat(e.target.value))}
-            className="flex-1 accent-[#FF2800] cursor-pointer h-1.5 bg-[#161B28] rounded-lg"
+            className="flex-1 accent-[#00E5FF] cursor-pointer h-1 bg-[#14171E] rounded-[1px]"
           />
-          <span className="text-[10px] mono text-[#64748B] w-14 text-right tabular">
+          <span className="text-[10px] text-[#64748B] w-12 text-right tabular">
             {Math.round(lapLength).toLocaleString()}m
           </span>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => setIsPlaying(!isPlaying)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded text-xs font-black mono transition-all shadow-xs ${
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-[2px] text-xs font-bold transition-colors cursor-pointer ${
                 isPlaying
-                  ? 'bg-[#E10600] text-white'
-                  : 'bg-[#FF8000] text-black hover:bg-[#FFA033]'
+                  ? 'bg-[#FF2A54] text-white'
+                  : 'bg-[#14171E] hover:bg-[#1E2433] text-white border border-[#1E222B]'
               }`}
             >
               {isPlaying ? (
                 <>
-                  <Pause className="w-3.5 h-3.5" /> PAUSE
+                  <Pause className="w-3 h-3" /> PAUSE
                 </>
               ) : (
                 <>
-                  <Play className="w-3.5 h-3.5 fill-current" /> PLAY REPLAY
+                  <Play className="w-3 h-3 fill-current" /> PLAY
                 </>
               )}
             </button>
@@ -1088,21 +1095,21 @@ export default function TrackMap({
             <button
               type="button"
               onClick={() => onHoverDistance && onHoverDistance(0)}
-              className="p-1 rounded bg-[#101524] text-[#94A3B8] hover:text-white border border-[#1A2336] transition-colors"
+              className="p-1 rounded-[2px] bg-[#14171E] text-[#94A3B8] hover:text-white border border-[#1E222B] transition-colors cursor-pointer"
               title="Reset to Start/Finish line"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3 h-3" />
             </button>
 
-            <div className="flex items-center bg-[#101524] rounded p-0.5 border border-[#1A2336]">
+            <div className="flex items-center bg-[#14171E] rounded-[2px] p-0.5 border border-[#1E222B]">
               {[0.5, 1, 2, 4].map((spd) => (
                 <button
                   key={spd}
                   type="button"
                   onClick={() => setPlaybackSpeed(spd)}
-                  className={`px-2 py-0.5 rounded text-[10px] mono font-bold transition-all ${
+                  className={`px-1.5 py-0.2 rounded-[1px] text-[10px] font-bold transition-colors cursor-pointer ${
                     playbackSpeed === spd
-                      ? 'bg-[#1E293B] text-[#FFB703]'
+                      ? 'bg-[#1E2433] text-[#00E5FF] border border-[#2D384D]'
                       : 'text-[#64748B] hover:text-[#94A3B8]'
                   }`}
                 >
@@ -1112,7 +1119,7 @@ export default function TrackMap({
             </div>
           </div>
 
-          <div className="text-[10px] mono text-[#64748B] hidden sm:block">
+          <div className="text-[10px] text-[#64748B] hidden sm:block">
             {sessionStats.note}
           </div>
         </div>

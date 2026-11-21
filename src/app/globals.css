@@ -2,45 +2,46 @@
 
 @layer base {
   :root {
-    --bg-page: #050507;
-    --bg-surface: #0E1118;
-    --bg-card: rgba(18, 20, 26, 0.72);
-    --border-color: rgba(255, 255, 255, 0.08);
-    --border-highlight: rgba(255, 255, 255, 0.16);
+    --bg-page: #07080A;
+    --bg-surface: #0D0F13;
+    --bg-card: #0D0F13;
+    --border-color: #1E222B;
+    --border-highlight: #2D3340;
     --text-primary: #F8FAFC;
     --text-secondary: #94A3B8;
     --text-muted: #64748B;
-    --brand-red: #FF2800;
-    --brand-cyan: #00F0FF;
+    --brand-red: #FF2A54;
+    --brand-cyan: #00E5FF;
     --brand-purple: #B829EA;
     --brand-green: #00E676;
     --brand-yellow: #FFB300;
   }
 
   body {
-    background-color: var(--bg-page);
+    background-color: #07080A;
     color: var(--text-primary);
     font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
     letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
   }
 }
 
-/* Custom scrollbars for telemetry panes */
+/* Custom scrollbars for high-density telemetry panes */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: #050507;
+  background: #07080A;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1A2336;
-  border-radius: 3px;
+  background: #1E222B;
+  border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2A3854;
+  background: #2D3340;
 }
 
 /* Typography Helpers */
@@ -58,41 +59,48 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Obsidian Glassmorphism Panels */
+/* High-Density Motorsport Telemetry Hardware Panels (MoTeC / ATLAS) */
 .obsidian-card {
-  background: rgba(18, 20, 26, 0.72);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+  background: #0D0F13;
+  border: 1px solid #1E222B;
+  border-radius: 2px;
+  box-shadow: none;
 }
 
 .obsidian-card-hover {
-  transition: all 0.2s ease-in-out;
+  transition: border-color 0.15s ease-in-out;
 }
 .obsidian-card-hover:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.7);
+  border-color: #2D3340;
 }
 
 .obsidian-pill {
-  background: rgba(18, 20, 26, 0.60);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #14171E;
+  border: 1px solid #1E222B;
+  border-radius: 2px;
 }
 
-/* Subtle Technical CAD Grid */
+/* Technical Coordinate Grid for Oscilloscope & Map */
 .technical-grid {
+  background-color: #07080A;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 32px 32px;
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
-/* Radial Glow Behind Active Canvas */
+.cad-crosshair-grid {
+  background-color: #07080A;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.15) 1px, transparent 1px),
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px, 32px 32px, 32px 32px;
+}
+
+/* Base Canvas */
 .canvas-glow {
-  background: radial-gradient(circle at 50% 12%, rgba(18, 21, 30, 0.75) 0%, rgba(5, 5, 7, 1) 70%);
+  background: #07080A;
 }
 
 /* F1 Logo & Intro Cinematic Animations */
