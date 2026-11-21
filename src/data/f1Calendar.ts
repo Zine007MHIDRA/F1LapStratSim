@@ -1,5 +1,6 @@
 import { getCircuit } from './circuits';
 import { CircuitData } from '../engine/types';
+import { resolveLiveOrUpcomingWeekend } from '../engine/calendarEngine';
 
 export interface RaceWeekendInfo {
   circuitId: string;
@@ -431,10 +432,11 @@ export const F1_CALENDAR: Record<string, RaceWeekendInfo> = {
 };
 
 /**
- * Returns the active or upcoming race weekend (defaulting to the USA GP at COTA as requested)
+ * Returns the dynamically detected active or earliest upcoming race weekend based on real-time dates
  */
 export function getActiveRaceWeekend(): RaceWeekendInfo {
-  return F1_CALENDAR['cota'];
+  const live = resolveLiveOrUpcomingWeekend();
+  return F1_CALENDAR[live.circuitId] || F1_CALENDAR['cota'];
 }
 
 export function getRaceWeekend(circuitId: string): RaceWeekendInfo {

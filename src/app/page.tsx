@@ -10,12 +10,13 @@ import TelemetryChart from '../components/TelemetryChart';
 import TrackMap from '../components/TrackMap';
 import F1IntroSplash from '../components/F1IntroSplash';
 import { getCircuit } from '../data/circuits';
+import { resolveLiveOrUpcomingWeekend } from '../engine/calendarEngine';
 import { car2025, car2026 } from '../engine/carModel';
 import { simulateLap } from '../engine/lapSim';
 
 export default function Home() {
   const [showIntro, setShowIntro] = useState<boolean>(false);
-  const [circuitId, setCircuitId] = useState<string>('cota');
+  const [circuitId, setCircuitId] = useState<string>(() => resolveLiveOrUpcomingWeekend().circuitId);
   const [era, setEra] = useState<'2025' | '2026'>('2025');
   const [activeTab, setActiveTab] = useState<
     'simulator' | 'telemetry' | 'strategy' | 'circuit' | 'regulations'
@@ -26,7 +27,12 @@ export default function Home() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const c = params.get('circuit');
-      if (c) setCircuitId(c);
+      if (c) {
+        setCircuitId(c);
+      } else {
+        const live = resolveLiveOrUpcomingWeekend();
+        setCircuitId(live.circuitId);
+      }
 
       const hasSeen = sessionStorage.getItem('f1_intro_seen');
       const skipParam = params.get('skipIntro');

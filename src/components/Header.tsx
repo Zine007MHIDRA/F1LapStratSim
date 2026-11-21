@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { CIRCUITS_LIST } from '../data/circuits';
 import { CircuitData } from '../engine/types';
-import { Gauge, Sliders, MapPin, Zap, Activity, ChevronDown } from 'lucide-react';
+import { resolveLiveOrUpcomingWeekend } from '../engine/calendarEngine';
+import { Gauge, Sliders, MapPin, Zap, Activity, ChevronDown, Radio } from 'lucide-react';
 
 interface HeaderProps {
   currentCircuit: CircuitData;
@@ -13,6 +14,33 @@ interface HeaderProps {
   activeTab: 'simulator' | 'telemetry' | 'strategy' | 'circuit' | 'regulations';
   onSelectTab: (tab: 'simulator' | 'telemetry' | 'strategy' | 'circuit' | 'regulations') => void;
 }
+
+const COUNTRY_CODES: Record<string, string> = {
+  bahrain: 'BHR',
+  jeddah: 'SAU',
+  albert_park: 'AUS',
+  suzuka: 'JPN',
+  shanghai: 'CHN',
+  miami: 'USA',
+  imola: 'ITA',
+  monaco: 'MCO',
+  montreal: 'CAN',
+  barcelona: 'ESP',
+  red_bull_ring: 'AUT',
+  silverstone: 'GBR',
+  hungaroring: 'HUN',
+  spa: 'BEL',
+  zandvoort: 'NLD',
+  monza: 'ITA',
+  baku: 'AZE',
+  singapore: 'SGP',
+  cota: 'USA',
+  mexico_city: 'MEX',
+  interlagos: 'BRA',
+  las_vegas: 'USA',
+  lusail: 'QAT',
+  yas_marina: 'ARE',
+};
 
 export default function Header({
   currentCircuit,
@@ -24,6 +52,11 @@ export default function Header({
 }: HeaderProps) {
   const currentRoundIndex = CIRCUITS_LIST.findIndex((c) => c.id === currentCircuit.id);
   const roundStr = currentRoundIndex >= 0 ? `R${String(currentRoundIndex + 1).padStart(2, '0')}` : 'GP';
+
+  // Real-time automatic race weekend detection
+  const liveWeekend = useMemo(() => resolveLiveOrUpcomingWeekend(), []);
+  const isCurrentRealtimeRound = currentCircuit.id === liveWeekend.circuitId;
+  const currentCountryCode = COUNTRY_CODES[currentCircuit.id] || 'F1';
 
   return (
     <header className="sticky top-2 z-50 px-2 sm:px-4 max-w-7xl mx-auto w-full transition-all">
@@ -48,7 +81,7 @@ export default function Header({
               </span>
             </div>
 
-            {/* Circuit Selector Island */}
+            {/* Circuit Selector Island (With ISO Country Code Badge to Prevent Windows Flag Glitches) */}
             <div className="relative flex items-center">
               <select
                 aria-label="Select Grand Prix Circuit"
@@ -56,22 +89,48 @@ export default function Header({
                 onChange={(e) => onSelectCircuit(e.target.value)}
                 className="bg-[#12151E] text-white border border-white/10 hover:border-white/20 rounded-xl pl-3 pr-8 py-1.5 text-xs font-mono font-bold focus:outline-none focus:border-[#FF2800] cursor-pointer transition-all appearance-none shadow-inner"
               >
-                {CIRCUITS_LIST.map((c, idx) => (
-                  <option key={c.id} value={c.id} className="bg-[#0B0F19] text-white">
-                    R{String(idx + 1).padStart(2, '0')} • {c.flag} {c.name} ({c.country})
-                  </option>
-                ))}
+                {CIRCUITS_LIST.map((c, idx) => {
+                  const code = COUNTRY_CODES[c.id] || 'F1';
+                  const isAuto = c.id === liveWeekend.circuitId;
+                  return (
+                    <option key={c.id} value={c.id} className="bg-[#0B0F19] text-white">
+                      R{String(idx + 1).padStart(2, '0')} • [{code}] {c.name} ({c.country}){isAuto ? ' ⚡ ACTIVE/NEXT' : ''}
+                    </option>
+                  );
+                })}
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-[#64748B] absolute right-2.5 pointer-events-none" />
             </div>
 
-            {/* Mini Circuit Badge */}
-            <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/5 border border-white/5 text-[11px] font-mono text-[#94A3B8]">
-              <span className="text-white font-bold">{roundStr}</span>
-              <span className="text-white/20">•</span>
-              <span>{currentCircuit.direction}</span>
-              <span className="text-white/20">•</span>
-              <span>{Math.round(currentCircuit.lapLengthM).toLocaleString()}m</span>
+            {/* Dynamic Live Calendar Status Chip */}
+            <div className="flex items-center gap-1.5">
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border transition-all"
+                style={{
+                  backgroundColor: isCurrentRealtimeRound ? `${liveWeekend.statusColor}15` : 'rgba(255,255,255,0.03)',
+                  borderColor: isCurrentRealtimeRound ? `${liveWeekend.statusColor}40` : 'rgba(255,255,255,0.08)',
+                  color: isCurrentRealtimeRound ? liveWeekend.statusColor : '#94A3B8',
+                }}
+              >
+                <Radio className="w-3 h-3 animate-pulse" />
+                <span>
+                  {isCurrentRealtimeRound
+                    ? liveWeekend.statusBadge
+                    : `R${String(currentRoundIndex + 1).padStart(2, '0')} ARCHIVE`}
+                </span>
+              </div>
+
+              {/* Snap Back to Live Button */}
+              {!isCurrentRealtimeRound && (
+                <button
+                  type="button"
+                  onClick={() => onSelectCircuit(liveWeekend.circuitId)}
+                  className="px-2 py-0.5 rounded-lg bg-[#00F0FF]/15 hover:bg-[#00F0FF]/25 border border-[#00F0FF]/30 text-[#00F0FF] text-[10px] font-mono font-bold tracking-wider uppercase transition-all cursor-pointer"
+                  title={`Snap to active/next round (${liveWeekend.gpName})`}
+                >
+                  LIVE ROUND
+                </button>
+              )}
             </div>
           </div>
 
