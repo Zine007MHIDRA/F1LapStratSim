@@ -172,12 +172,6 @@ export default function F1IntroSplash({ onDismiss, autoDismissMs }: F1IntroSplas
         </div>
       </div>
 
-      {/* Footer Info */}
-      <div className="relative z-20 border-t border-[#1A2336]/60 bg-[#0B0F19]/60 px-6 py-2.5 flex items-center justify-between text-[11px] font-mono text-[#64748B]">
-        <span>OFFICIAL FORMULA 1 LOGO // STROKE TRACE</span>
-        <span className="text-[#00E676] font-semibold">AUDIO: F1 TEAM RADIO</span>
-      </div>
-
       {/* Speed Warp Flash Overlay */}
       {isWarping && (
         <div className="fixed inset-0 z-50 bg-[#06080C] pointer-events-none flex items-center justify-center animate-fade-in">
