@@ -6,6 +6,7 @@
 
 class IntroSoundEngine {
   private ctx: AudioContext | null = null;
+  private radioSoundAudio: HTMLAudioElement | null = null;
   private revAudio: HTMLAudioElement | null = null;
   private launchAudio: HTMLAudioElement | null = null;
   private flybyAudio: HTMLAudioElement | null = null;
@@ -21,6 +22,10 @@ class IntroSoundEngine {
 
   private initRealAudio() {
     try {
+      this.radioSoundAudio = new Audio('/audio/f1_radio_sound.mp3');
+      this.radioSoundAudio.preload = 'auto';
+      this.radioSoundAudio.volume = 0.95;
+
       this.revAudio = new Audio('/audio/f1_real_rev.mp3');
       this.revAudio.preload = 'auto';
       this.revAudio.volume = 0.85;
@@ -34,6 +39,39 @@ class IntroSoundEngine {
       this.flybyAudio.volume = 0.8;
     } catch (e) {
       console.warn('Audio preloading failed:', e);
+    }
+  }
+
+  /**
+   * Play authentic user-provided F1 Team Radio audio
+   */
+  public playF1RadioSound() {
+    if (this.radioSoundAudio) {
+      try {
+        this.radioSoundAudio.currentTime = 0;
+        const p = this.radioSoundAudio.play();
+        if (p !== undefined) {
+          p.catch(() => {
+            this.playRadioSquelch();
+          });
+        }
+        return;
+      } catch {
+        this.playRadioSquelch();
+      }
+    }
+    this.playRadioSquelch();
+  }
+
+  /**
+   * Stop team radio sound
+   */
+  public stopF1RadioSound() {
+    if (this.radioSoundAudio) {
+      try {
+        this.radioSoundAudio.pause();
+        this.radioSoundAudio.currentTime = 0;
+      } catch {}
     }
   }
 
