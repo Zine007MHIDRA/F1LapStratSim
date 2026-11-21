@@ -28,7 +28,7 @@ interface TrackMapProps {
   className?: string;
 }
 
-export type TrackViewMode = 'broadcast' | 'heatmap' | 'drs' | 'sectors';
+export type TrackViewMode = 'broadcast' | 'elevation' | 'heatmap' | 'drs' | 'sectors';
 
 export default function TrackMap({
   circuit,
@@ -200,9 +200,14 @@ export default function TrackMap({
 
     // 1. Build main track ribbon SVG path
     let fullD = '';
-    const segs: { d: string; color: string; speed: number; dist: number; sector: number }[] = [];
+    const segs: { d: string; color: string; elevColor: string; speed: number; dist: number; sector: number }[] = [];
     const s1Cut = lapLength * circuit.sectorFractions[0];
     const s2Cut = lapLength * circuit.sectorFractions[1];
+
+    const zs = telemetry.z || [];
+    const minZ = zs.length > 0 ? Math.min(...zs) : 0;
+    const maxZ = zs.length > 0 ? Math.max(...zs) : 0;
+    const zRange = maxZ - minZ || 1;
 
     for (let i = 0; i < xs.length; i++) {
       const p1 = toSvg(xs[i], ys[i]);
@@ -218,15 +223,24 @@ export default function TrackMap({
       const dist = dists[i] || 0;
 
       let spdColor = '#00F0FF';
-      if (spd < 130) spdColor = '#E10600';
-      else if (spd < 220) spdColor = '#FFB703';
+      if (spd < 130) spdColor = '#FF2800';
+      else if (spd < 220) spdColor = '#FFB300';
       else if (spd < 280) spdColor = '#00E676';
+
+      // 3D elevation color: low altitude cyan -> mid green -> climb yellow -> summit red
+      const zVal = zs[i] !== undefined ? zs[i] : minZ;
+      const zNorm = (zVal - minZ) / zRange;
+      let elevColor = '#00F0FF';
+      if (zNorm > 0.70) elevColor = '#FF2800';
+      else if (zNorm > 0.45) elevColor = '#FFB300';
+      else if (zNorm > 0.20) elevColor = '#00E676';
 
       const sector = dist < s1Cut ? 1 : dist < s2Cut ? 2 : 3;
 
       segs.push({
         d: `M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`,
         color: spdColor,
+        elevColor,
         speed: spd,
         dist,
         sector,
@@ -523,29 +537,29 @@ export default function TrackMap({
   );
 
   return (
-    <div className={`bg-[#0B0F19] border border-[#1A2336] rounded-xl flex flex-col shadow-2xl overflow-hidden ${className}`}>
+    <div className={`obsidian-card rounded-2xl border border-white/10 flex flex-col shadow-2xl overflow-hidden backdrop-blur-xl ${className}`}>
       {/* 1. Sleek Command Header Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-[#1A2336]/80 bg-[#0E1321]">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-white/10 bg-[#0A0D15]/80">
         <div className="flex items-center gap-2.5">
           <span className="w-2 h-2 rounded-full bg-[#00E676] animate-pulse shadow-[0_0_8px_#00E676]" />
           <span className="text-xs font-black tracking-wider text-white uppercase mono">
-            CIRCUIT TELEMETRY // {circuit.name.toUpperCase()}
+            3D CIRCUIT TRACK MAP // {circuit.name.toUpperCase()}
           </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#151C2C] text-[#94A3B8] border border-[#212E44] mono">
-            {Math.round(activeDistanceM)}m / {lapLength}m
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 text-[#94A3B8] border border-white/10 mono">
+            {Math.round(activeDistanceM).toLocaleString()}m / {Math.round(lapLength).toLocaleString()}m
           </span>
         </div>
 
         {/* View Mode Segmented Switch */}
-        <div className="flex items-center bg-[#07090E] p-0.5 rounded-lg border border-[#1A2336]">
-          {(['broadcast', 'heatmap', 'drs', 'sectors'] as const).map((mode) => (
+        <div className="flex items-center bg-[#05070B] p-0.5 rounded-xl border border-white/10">
+          {(['broadcast', 'elevation', 'heatmap', 'drs', 'sectors'] as const).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setViewMode(mode)}
-              className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all mono ${
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all mono cursor-pointer ${
                 viewMode === mode
-                  ? 'bg-[#1E293B] text-white shadow-xs'
+                  ? 'bg-[#161B28] text-white shadow-[0_0_10px_rgba(255,255,255,0.1)] border border-white/10'
                   : 'text-[#64748B] hover:text-[#94A3B8]'
               }`}
             >
@@ -555,8 +569,8 @@ export default function TrackMap({
           <button
             type="button"
             onClick={() => setShowCorners(!showCorners)}
-            className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase transition-all mono border-l border-[#1A2336] ${
-              showCorners ? 'text-[#FFB703]' : 'text-[#475569]'
+            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase transition-all mono border-l border-white/10 cursor-pointer ${
+              showCorners ? 'text-[#FFB300]' : 'text-[#475569]'
             }`}
             title="Toggle Turn Numbers"
           >
@@ -788,6 +802,21 @@ export default function TrackMap({
               />
             ))}
 
+          {/* 3D Elevation Gradient View (e.g. 41m climb to T1 at COTA) */}
+          {viewMode === 'elevation' &&
+            segmentsPath.map((seg, idx) => (
+              <path
+                key={`elev-${idx}`}
+                d={seg.d}
+                fill="none"
+                stroke={seg.elevColor || '#00F0FF'}
+                strokeWidth="7"
+                strokeLinecap="round"
+                className="hover:stroke-white transition-colors"
+                onMouseEnter={() => onHoverDistance && onHoverDistance(seg.dist)}
+              />
+            ))}
+
           {/* Sectors */}
           {viewMode === 'sectors' &&
             segmentsPath.map((seg, idx) => (
@@ -797,10 +826,10 @@ export default function TrackMap({
                 fill="none"
                 stroke={
                   seg.sector === 1
-                    ? '#FFB703'
+                    ? '#FFB300'
                     : seg.sector === 2
                     ? '#00F0FF'
-                    : '#D946EF'
+                    : '#B829EA'
                 }
                 strokeWidth="8"
                 strokeLinecap="round"
@@ -1015,22 +1044,22 @@ export default function TrackMap({
       </div>
 
       {/* 5. Playback Controls & Scrubber */}
-      <div className="px-4 py-2.5 bg-[#080B12] flex flex-col gap-2">
+      <div className="px-4 py-3 bg-[#0A0D15]/90 border-t border-white/5 flex flex-col gap-2">
         <div className="flex items-center gap-3">
-          <span className="text-[10px] mono text-[#64748B] w-12 tabular">
-            {Math.round(activeDistanceM)}m
+          <span className="text-[10px] mono text-[#64748B] w-14 tabular">
+            {Math.round(activeDistanceM).toLocaleString()}m
           </span>
           <input
             type="range"
             min={0}
-            max={lapLength}
+            max={Math.round(lapLength)}
             step={5}
             value={Math.round(activeDistanceM)}
             onChange={(e) => onHoverDistance && onHoverDistance(parseFloat(e.target.value))}
-            className="flex-1 accent-[#FF8000] cursor-pointer h-1 bg-[#1A2336] rounded-lg"
+            className="flex-1 accent-[#FF2800] cursor-pointer h-1.5 bg-[#161B28] rounded-lg"
           />
-          <span className="text-[10px] mono text-[#64748B] w-12 text-right tabular">
-            {lapLength}m
+          <span className="text-[10px] mono text-[#64748B] w-14 text-right tabular">
+            {Math.round(lapLength).toLocaleString()}m
           </span>
         </div>
 

@@ -1,15 +1,28 @@
 import type { Metadata, Viewport } from 'next';
+import { Space_Grotesk, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
+const spaceGrotesk = Space_Grotesk({
+  subsets: ['latin'],
+  variable: '--font-space-grotesk',
+  display: 'swap',
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-jetbrains-mono',
+  display: 'swap',
+});
+
 export const metadata: Metadata = {
-  title: 'F1LapStratSim | Formula 1 Vehicle Dynamics & Strategy Simulator',
+  title: 'BOX BOX // Formula 1 Pit-Wall Simulator',
   description:
     'Energy-constrained quasi-static vehicle dynamics simulator with authentic FastF1 telemetry, 2025 vs 2026 technical regulations, and combinatorial pit stop optimizer.',
-  keywords: ['Formula 1', 'Lap Time Simulation', 'FastF1', 'Pirelli Tyre Model', 'Race Strategy Optimizer'],
+  keywords: ['Formula 1', 'Lap Time Simulation', 'FastF1', 'Pirelli Tyre Model', 'Race Strategy Optimizer', 'BOX BOX'],
 };
 
 export const viewport: Viewport = {
-  themeColor: '#080A0F',
+  themeColor: '#050507',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -21,8 +34,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen bg-[#080A0F] text-[#F1F5F9] antialiased selection:bg-[#E10600]/30 selection:text-white">
+    <html lang="en" className={`dark ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}>
+      <body className="min-h-screen bg-[#050507] text-[#F8FAFC] antialiased selection:bg-[#FF2800]/30 selection:text-white font-mono">
         {children}
       </body>
     </html>

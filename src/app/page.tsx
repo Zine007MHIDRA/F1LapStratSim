@@ -43,7 +43,7 @@ export default function Home() {
   const simulation = simulateLap(circuit, baseCar, { step: 3.0 });
 
   return (
-    <div className="min-h-screen bg-[#06080C] text-[#F8FAFC] flex flex-col">
+    <div className="min-h-screen bg-[#050507] canvas-glow text-[#F8FAFC] flex flex-col">
       {/* First-visit F1 Logo Stroke Trace & Team Radio Intro */}
       {showIntro && (
         <F1IntroSplash
