@@ -67,7 +67,7 @@ export default function F1IntroSplash({ onDismiss, autoDismissMs }: F1IntroSplas
 
   return (
     <div 
-      className="fixed inset-0 z-50 bg-[#06080C] text-[#F8FAFC] select-none flex flex-col justify-between overflow-hidden"
+      className="fixed inset-0 z-[100] bg-[#06080C] text-[#F8FAFC] select-none flex flex-col justify-between overflow-hidden"
       onClick={handleLaunch}
     >
       {/* Background radial carbon glow */}
@@ -174,7 +174,7 @@ export default function F1IntroSplash({ onDismiss, autoDismissMs }: F1IntroSplas
 
       {/* Speed Warp Flash Overlay */}
       {isWarping && (
-        <div className="fixed inset-0 z-50 bg-[#06080C] pointer-events-none flex items-center justify-center animate-fade-in">
+        <div className="fixed inset-0 z-[100] bg-[#06080C] pointer-events-none flex items-center justify-center animate-fade-in">
           <div className="text-center font-mono space-y-2">
             <div className="w-10 h-10 border-2 border-[#E10600] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
             <span className="text-xs tracking-widest text-[#E10600] uppercase font-bold">

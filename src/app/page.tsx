@@ -47,17 +47,19 @@ export default function Home() {
   const baseCar = era === '2025' ? car2025(circuit.name, 'qualifying') : car2026(circuit.name, 'qualifying');
   const simulation = simulateLap(circuit, baseCar, { step: 3.0 });
 
+  // Only show the pit-wall application after user presses Enter or dismisses the intro
+  if (showIntro) {
+    return (
+      <F1IntroSplash
+        onDismiss={() => {
+          setShowIntro(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#050507] canvas-glow text-[#F8FAFC] flex flex-col">
-      {/* F1 Logo Stroke Trace & Team Radio Intro (Plays on every reload/visit) */}
-      {showIntro && (
-        <F1IntroSplash
-          onDismiss={() => {
-            setShowIntro(false);
-          }}
-        />
-      )}
-
       {/* Top Navigation & Circuit Bar */}
       <Header
         currentCircuit={circuit}
