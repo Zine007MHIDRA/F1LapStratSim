@@ -52,6 +52,7 @@ export default function Home() {
                   circuit={circuit}
                   activeDistanceM={hoverDistM}
                   onHoverDistance={setHoverDistM}
+                  simulation={simulation}
                 />
               </div>
               <div className="lg:col-span-7">

@@ -9,9 +9,11 @@ import bahrainData from './circuits/bahrain.json';
 import redBullRingData from './circuits/red_bull_ring.json';
 import interlagosData from './circuits/interlagos.json';
 import cotaData from './circuits/cota.json';
+import barcelonaData from './circuits/barcelona.json';
 import indexData from './circuits/index.json';
 
 export const CIRCUITS: Record<string, CircuitData> = {
+  barcelona: barcelonaData as unknown as CircuitData,
   monza: monzaData as unknown as CircuitData,
   silverstone: silverstoneData as unknown as CircuitData,
   spa: spaData as unknown as CircuitData,

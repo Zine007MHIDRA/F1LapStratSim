@@ -225,6 +225,7 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
             circuit={circuit}
             activeDistanceM={hoverDistM}
             onHoverDistance={setHoverDistM}
+            simulation={simulation}
           />
 
           {/* ERS Energy Status Card */}

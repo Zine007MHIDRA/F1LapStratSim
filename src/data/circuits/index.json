@@ -1,5 +1,24 @@
 [
   {
+    "id": "barcelona",
+    "name": "Barcelona",
+    "fullName": "Circuit de Barcelona-Catalunya",
+    "country": "Spain",
+    "location": "Montmeló, Catalonia, Spain",
+    "flag": "🇪🇸",
+    "characteristics": "Complete aerodynamic test · High-speed Turn 3, Turn 9 Campsa & new high-speed final sector",
+    "direction": "Clockwise",
+    "lapLengthM": 4657,
+    "raceLaps": 66,
+    "pitLossS": 22.0,
+    "tyreStress": 1.25,
+    "altitudeM": 110,
+    "poleDriver": "NOR",
+    "poleLapTime": 71.383,
+    "topSpeedKmh": 338.5,
+    "drsZoneCount": 2
+  },
+  {
     "id": "monza",
     "name": "Monza",
     "fullName": "Autodromo Nazionale Monza",
