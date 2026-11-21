@@ -13,6 +13,7 @@ interface HeaderProps {
   onSelectEra: (era: '2025' | '2026') => void;
   activeTab: 'simulator' | 'telemetry' | 'strategy' | 'circuit' | 'regulations';
   onSelectTab: (tab: 'simulator' | 'telemetry' | 'strategy' | 'circuit' | 'regulations') => void;
+  onTriggerIntro?: () => void;
 }
 
 const COUNTRY_CODES: Record<string, string> = {
@@ -49,6 +50,7 @@ export default function Header({
   onSelectEra,
   activeTab,
   onSelectTab,
+  onTriggerIntro,
 }: HeaderProps) {
   const currentRoundIndex = CIRCUITS_LIST.findIndex((c) => c.id === currentCircuit.id);
   const roundStr = currentRoundIndex >= 0 ? `R${String(currentRoundIndex + 1).padStart(2, '0')}` : 'GP';
@@ -67,15 +69,20 @@ export default function Header({
           <div className="flex flex-wrap items-center gap-3">
             {/* BOX BOX // PIT-WALL Logo with Pulsing Recording Beacon */}
             <div className="flex items-center gap-2 pl-1">
-              <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onTriggerIntro}
+                className="flex items-center gap-1.5 cursor-pointer hover:opacity-90 transition-opacity focus:outline-none"
+                title="Replay F1 Intro & Team Radio"
+              >
                 <span className="font-display font-black text-base sm:text-lg tracking-wider text-white">
                   BOX BOX
                 </span>
                 <span
                   className="w-2.5 h-2.5 rounded-full bg-[#FF2800] shadow-[0_0_12px_#FF2800] animate-pulse inline-block"
-                  title="Live Telemetry Link Active"
+                  title="Live Telemetry Link Active (Click to Replay Intro)"
                 />
-              </div>
+              </button>
               <span className="text-[11px] font-mono text-[#64748B] tracking-widest uppercase border-l border-white/10 pl-2">
                 PIT-WALL
               </span>

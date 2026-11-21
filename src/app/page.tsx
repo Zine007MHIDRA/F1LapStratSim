@@ -15,7 +15,7 @@ import { car2025, car2026 } from '../engine/carModel';
 import { simulateLap } from '../engine/lapSim';
 
 export default function Home() {
-  const [showIntro, setShowIntro] = useState<boolean>(false);
+  const [showIntro, setShowIntro] = useState<boolean>(true);
   const [circuitId, setCircuitId] = useState<string>(() => resolveLiveOrUpcomingWeekend().circuitId);
   const [era, setEra] = useState<'2025' | '2026'>('2025');
   const [activeTab, setActiveTab] = useState<
@@ -34,9 +34,9 @@ export default function Home() {
         setCircuitId(live.circuitId);
       }
 
-      const introParam = params.get('intro');
-      if (introParam === 'true') {
-        setShowIntro(true);
+      // Allow skipping only if explicitly requested via URL parameter
+      if (params.get('skipIntro') === 'true') {
+        setShowIntro(false);
       }
     }
   }, []);
@@ -49,14 +49,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#050507] canvas-glow text-[#F8FAFC] flex flex-col">
-      {/* First-visit F1 Logo Stroke Trace & Team Radio Intro */}
+      {/* F1 Logo Stroke Trace & Team Radio Intro (Plays on every reload/visit) */}
       {showIntro && (
         <F1IntroSplash
           onDismiss={() => {
             setShowIntro(false);
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem('f1_intro_seen', 'true');
-            }
           }}
         />
       )}
@@ -69,6 +66,7 @@ export default function Home() {
         onSelectEra={setEra}
         activeTab={activeTab}
         onSelectTab={setActiveTab}
+        onTriggerIntro={() => setShowIntro(true)}
       />
 
       {/* Main Content Area */}
