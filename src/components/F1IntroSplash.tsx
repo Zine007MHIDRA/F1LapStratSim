@@ -86,9 +86,12 @@ export default function F1IntroSplash({ onDismiss, autoDismissMs }: F1IntroSplas
       {/* Top action row */}
       <div className="relative z-20 flex items-center justify-between p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#E10600] animate-pulse"></span>
-          <span className="text-xs font-mono font-bold tracking-widest text-white uppercase">
-            F1 // PIT-WALL TELEMETRY
+          <span className="font-display font-black text-base sm:text-lg tracking-wider text-white">
+            BOX BOX
+          </span>
+          <span className="w-2.5 h-2.5 rounded-full bg-[#FF2800] shadow-[0_0_12px_#FF2800] animate-pulse inline-block" />
+          <span className="text-[11px] font-mono text-[#64748B] tracking-widest uppercase border-l border-white/10 pl-2">
+            PIT-WALL
           </span>
         </div>
       </div>
@@ -115,10 +118,10 @@ export default function F1IntroSplash({ onDismiss, autoDismissMs }: F1IntroSplas
           {/* Subtitles & Branding */}
           <div className="mt-4 text-center space-y-1.5 font-mono">
             <div className="text-xs sm:text-sm font-bold tracking-[0.3em] uppercase text-white/90">
-              FORMULA 1 // PIT-WALL TELEMETRY
+              BOX BOX // PIT-WALL SIMULATOR
             </div>
             <div className="text-[11px] sm:text-xs text-[#64748B] tracking-[0.2em] uppercase">
-              MISSION CONTROL • REAL-TIME SENSOR CALIBRATION
+              MISSION CONTROL • REAL-TIME TELEMETRY ENGINE
             </div>
           </div>
 
@@ -129,10 +132,10 @@ export default function F1IntroSplash({ onDismiss, autoDismissMs }: F1IntroSplas
                 e.stopPropagation();
                 handleLaunch();
               }}
-              className="px-8 py-3.5 rounded-xl bg-[#E10600] hover:bg-[#c20500] text-white font-mono text-xs font-bold tracking-widest uppercase transition-all shadow-2xl shadow-[#E10600]/40 flex items-center gap-3 transform hover:scale-105 cursor-pointer ring-1 ring-white/20"
+              className="px-8 py-3.5 rounded-xl bg-[#FF2800] hover:bg-[#d62200] text-white font-mono text-xs font-bold tracking-widest uppercase transition-all shadow-2xl shadow-[#FF2800]/40 flex items-center gap-3 transform hover:scale-105 cursor-pointer ring-1 ring-white/20"
             >
               <Zap className="w-4 h-4 fill-current" />
-              LAUNCH SIMULATOR
+              ENTER PIT-WALL
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

@@ -101,7 +101,7 @@ export default function Header({
                   const isAuto = c.id === liveWeekend.circuitId;
                   return (
                     <option key={c.id} value={c.id} className="bg-[#0B0F19] text-white">
-                      R{String(idx + 1).padStart(2, '0')} • [{code}] {c.name} ({c.country}){isAuto ? ' ⚡ ACTIVE/NEXT' : ''}
+                      R{String(idx + 1).padStart(2, '0')} • {c.name} [{code}]{isAuto ? ' ⚡ LIVE' : ''}
                     </option>
                   );
                 })}

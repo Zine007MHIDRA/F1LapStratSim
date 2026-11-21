@@ -118,7 +118,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 mono text-[11px]">
           <div className="flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-[#00E676] inline-block animate-pulse"></span>
-            <span className="text-[#94A3B8]">F1 // PIT-WALL TELEMETRY ENGINE ONLINE</span>
+            <span className="text-[#94A3B8]">BOX BOX // PIT-WALL TELEMETRY ENGINE ONLINE</span>
           </div>
           <div>
             FastF1 Ingested Benchmarks • Pirelli Tyre Degradation • FIA Technical Regulations
