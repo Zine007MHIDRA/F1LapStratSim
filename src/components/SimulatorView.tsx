@@ -233,15 +233,15 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
           <div className="flex flex-wrap items-center gap-5 text-xs">
             {/* Pirelli Sidewall Ring Badges */}
             <div className="flex items-center gap-2">
-              <span className="text-[#64748B] font-bold text-[10px] uppercase">TYRE:</span>
-              <div className="flex items-center gap-1">
+              <span className="text-[#64748B] font-bold text-[10px] uppercase tracking-wider">PIRELLI TYRE:</span>
+              <div className="flex items-center gap-1.5">
                 {(
                   [
-                    { id: 'soft', label: 'S', color: '#FF2A54', name: 'Soft' },
+                    { id: 'soft', label: 'S', color: '#FF2800', name: 'Soft' },
                     { id: 'medium', label: 'M', color: '#FFB300', name: 'Medium' },
                     { id: 'hard', label: 'H', color: '#FFFFFF', name: 'Hard' },
                     { id: 'inter', label: 'I', color: '#00E676', name: 'Intermediate' },
-                    { id: 'wet', label: 'W', color: '#00E5FF', name: 'Full Wet' },
+                    { id: 'wet', label: 'W', color: '#00F0FF', name: 'Full Wet' },
                   ] as const
                 ).map((t) => {
                   const isSel = compound === t.id;
@@ -251,18 +251,30 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
                       type="button"
                       onClick={() => setCompound(t.id)}
                       title={`${t.name} Compound`}
-                      className={`relative flex items-center justify-center w-6 h-6 rounded-[2px] font-black text-[11px] transition-colors cursor-pointer border ${
+                      className={`relative flex items-center justify-center w-7 h-7 rounded-full font-mono font-black text-xs transition-all cursor-pointer ${
                         isSel
-                          ? 'border-current'
-                          : 'border-[#1E222B] bg-[#14171E] opacity-70 hover:opacity-100'
+                          ? 'scale-110 shadow-lg'
+                          : 'opacity-70 hover:opacity-100 hover:scale-105'
                       }`}
                       style={{
-                        backgroundColor: isSel ? `${t.color}20` : undefined,
-                        color: t.color,
-                        borderColor: isSel ? t.color : undefined,
+                        background: isSel ? '#12151E' : '#090C14',
+                        boxShadow: isSel ? `0 0 12px ${t.color}50` : undefined,
                       }}
                     >
-                      {t.label}
+                      {/* Authentic Sidewall Ring */}
+                      <svg viewBox="0 0 32 32" className="absolute inset-0 w-full h-full pointer-events-none">
+                        <circle
+                          cx="16"
+                          cy="16"
+                          r="13"
+                          fill="none"
+                          stroke={t.color}
+                          strokeWidth={isSel ? '3' : '2'}
+                          strokeDasharray="18 4 18 4"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <span style={{ color: isSel ? t.color : '#94A3B8' }}>{t.label}</span>
                     </button>
                   );
                 })}
