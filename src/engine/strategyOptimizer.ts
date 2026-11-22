@@ -12,6 +12,15 @@ import { simulateLap } from './lapSim';
 
 const DRY_COMPOUNDS: CompoundName[] = ['soft', 'medium', 'hard'];
 
+// Maximum realistic stint length per dry compound before total tyre failure
+const MAX_STINT_LAPS: Record<CompoundName, number> = {
+  soft: 25,
+  medium: 38,
+  hard: 55,
+  inter: 30,
+  wet: 30,
+};
+
 export interface StintTuple {
   compound: CompoundName;
   laps: number;
@@ -44,6 +53,62 @@ export const TRACK_SC_PROBABILITY: Record<string, { scProb: number; vscProb: num
   "yas_marina": { scProb: 0.40, vscProb: 0.40 },
 };
 
+export interface CircuitSensitivity {
+  baseLapTime: number; // Lap time with 105 kg fuel & 1.0 grip
+  fuelSensitivitySecPerKg: number; // sec / kg
+  gripSensitivitySecPerUnit: number; // sec / unit of grip deficit (1 - mu)
+}
+
+const sensitivityCache = new Map<string, CircuitSensitivity>();
+
+/**
+ * Calibrates analytical sensitivity derivatives for a circuit using exactly 3 reference solves.
+ * Cached per circuit so subsequent recalculations execute in sub-millisecond time.
+ */
+export function getCircuitSensitivity(circuit: CircuitData): CircuitSensitivity {
+  const cached = sensitivityCache.get(circuit.id);
+  if (cached) return cached;
+
+  const baseCar = car2025(circuit.name, 'race');
+  const simStep = 14.0;
+
+  // 1. Heavy fuel reference (105 kg, grip 1.0)
+  const heavy = simulateLap(circuit, baseCar, {
+    step: simStep,
+    fuelMassKg: 105.0,
+    gripMultiplier: 1.0,
+    energySolve: false,
+  });
+
+  // 2. Light fuel reference (10 kg, grip 1.0)
+  const light = simulateLap(circuit, baseCar, {
+    step: simStep,
+    fuelMassKg: 10.0,
+    gripMultiplier: 1.0,
+    energySolve: false,
+  });
+
+  // 3. Worn tyre reference (105 kg, grip 0.90)
+  const worn = simulateLap(circuit, baseCar, {
+    step: simStep,
+    fuelMassKg: 105.0,
+    gripMultiplier: 0.90,
+    energySolve: false,
+  });
+
+  const fuelSens = Math.max(0.015, Math.min(0.060, (heavy.lapTime - light.lapTime) / 95.0));
+  const gripSens = Math.max(2.0, Math.min(120.0, (worn.lapTime - heavy.lapTime) / 0.10));
+
+  const sens: CircuitSensitivity = {
+    baseLapTime: heavy.lapTime,
+    fuelSensitivitySecPerKg: fuelSens,
+    gripSensitivitySecPerUnit: gripSens,
+  };
+
+  sensitivityCache.set(circuit.id, sens);
+  return sens;
+}
+
 /**
  * Generates all valid 1-stop strategy plans covering totalLaps.
  * Enforces the FIA rule: must use at least two distinct dry compounds.
@@ -55,9 +120,10 @@ export function generate1StopPlans(totalLaps: number, minStint: number = 8, lapS
   for (const c1 of DRY_COMPOUNDS) {
     for (const c2 of DRY_COMPOUNDS) {
       if (c1 === c2) continue; // Must use 2 different compounds
-      for (let laps1 = effectiveMin; laps1 <= totalLaps - effectiveMin; laps1 += lapStep) {
+      const maxLaps1 = Math.min(totalLaps - effectiveMin, MAX_STINT_LAPS[c1]);
+      for (let laps1 = effectiveMin; laps1 <= maxLaps1; laps1 += lapStep) {
         const laps2 = totalLaps - laps1;
-        if (laps2 >= effectiveMin) {
+        if (laps2 >= effectiveMin && laps2 <= MAX_STINT_LAPS[c2]) {
           plans.push([
             { compound: c1, laps: laps1 },
             { compound: c2, laps: laps2 },
@@ -82,10 +148,12 @@ export function generate2StopPlans(totalLaps: number, minStint: number = 7, lapS
         // Must contain at least two distinct compounds across the 3 stints
         if (new Set([c1, c2, c3]).size < 2) continue;
 
-        for (let laps1 = effectiveMin; laps1 <= totalLaps - 2 * effectiveMin; laps1 += lapStep) {
-          for (let laps2 = effectiveMin; laps2 <= totalLaps - laps1 - effectiveMin; laps2 += lapStep) {
+        const maxLaps1 = Math.min(totalLaps - 2 * effectiveMin, MAX_STINT_LAPS[c1]);
+        for (let laps1 = effectiveMin; laps1 <= maxLaps1; laps1 += lapStep) {
+          const maxLaps2 = Math.min(totalLaps - laps1 - effectiveMin, MAX_STINT_LAPS[c2]);
+          for (let laps2 = effectiveMin; laps2 <= maxLaps2; laps2 += lapStep) {
             const laps3 = totalLaps - laps1 - laps2;
-            if (laps3 >= effectiveMin) {
+            if (laps3 >= effectiveMin && laps3 <= MAX_STINT_LAPS[c3]) {
               plans.push([
                 { compound: c1, laps: laps1 },
                 { compound: c2, laps: laps2 },
@@ -101,7 +169,7 @@ export function generate2StopPlans(totalLaps: number, minStint: number = 7, lapS
 }
 
 /**
- * Simulates a single race strategy lap by lap.
+ * Simulates a single race strategy lap by lap using the calibrated sensitivity model.
  */
 export function simulateRaceStrategy(
   circuit: CircuitData,
@@ -118,9 +186,8 @@ export function simulateRaceStrategy(
   const pitLoss = options.pitLossS ?? circuit.pitLossS ?? 23.0;
   const initialFuel = options.initialFuelKg ?? 105.0;
   const fuelPerLap = initialFuel / Math.max(totalLaps, 1);
-  const simStep = options.step ?? 12.0;
 
-  const baseCar = car2025(circuit.name, 'race');
+  const sens = getCircuitSensitivity(circuit);
   const thermalLoad = circuit.tyreStress ?? 1.0;
 
   const allLapTimes: number[] = [];
@@ -137,14 +204,12 @@ export function simulateRaceStrategy(
     for (let lapOnTyre = 1; lapOnTyre <= stint.laps; lapOnTyre++) {
       currentRaceLap++;
       const gMult = gripMultiplier(compound, lapOnTyre, thermalLoad);
-      const lapRes = simulateLap(circuit, baseCar, {
-        step: simStep,
-        gripMultiplier: gMult,
-        fuelMassKg: currentFuel,
-        energySolve: false, // In races, continuous balanced deployment is used
-      });
 
-      let lapT = lapRes.lapTime;
+      // Fast analytical sensitivity formulation calibrated from 3 reference solves
+      const deltaFuel = (currentFuel - 105.0) * sens.fuelSensitivitySecPerKg;
+      const deltaGrip = (1.0 - gMult) * sens.gripSensitivitySecPerUnit;
+      let lapT = sens.baseLapTime + deltaFuel + deltaGrip;
+
       // Dirty air penalty: if in traffic within dirtyAirLaps
       if (options.dirtyAirLaps && currentRaceLap <= options.dirtyAirLaps) {
         lapT += 1.15; // +1.15s/lap dirty air turbulence penalty
@@ -187,6 +252,7 @@ export function optimizeStrategy(
   include2Stop: boolean = true,
   maxCandidates: number = 40,
   options: {
+    pitLossS?: number;
     scLap?: number;
     dirtyAirLaps?: number;
   } = {},
@@ -204,7 +270,7 @@ export function optimizeStrategy(
 
   for (const plan of candidatePlans) {
     const res = simulateRaceStrategy(circuit, plan, {
-      step: 18.0,
+      pitLossS: options.pitLossS,
       scLap: options.scLap,
       dirtyAirLaps: options.dirtyAirLaps,
     });
@@ -226,7 +292,7 @@ export function optimizeStrategy(
 
   results.sort((a, b) => a.totalTime - b.totalTime);
   const bestTime = results[0]?.totalTime ?? 0;
-  const basePitLoss = circuit.pitLossS ?? 23.0;
+  const basePitLoss = options.pitLossS ?? circuit.pitLossS ?? 23.0;
 
   return results.slice(0, maxCandidates).map((r) => {
     // Calculate potential SC time savings if a safety car occurred during the pit window

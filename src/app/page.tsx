@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Header from '../components/Header';
 import SimulatorView from '../components/SimulatorView';
 import StrategyOptimizerView from '../components/StrategyOptimizerView';
@@ -41,11 +41,16 @@ export default function Home() {
     }
   }, []);
 
-  const circuit = getCircuit(circuitId);
+  const circuit = useMemo(() => getCircuit(circuitId), [circuitId]);
 
-  // Default simulation for standalone telemetry tab
-  const baseCar = era === '2025' ? car2025(circuit.name, 'qualifying') : car2026(circuit.name, 'qualifying');
-  const simulation = simulateLap(circuit, baseCar, { step: 3.0 });
+  // Default simulation for standalone telemetry tab (memoized to prevent re-simulating on tab switches)
+  const baseCar = useMemo(() => {
+    return era === '2025' ? car2025(circuit.name, 'qualifying') : car2026(circuit.name, 'qualifying');
+  }, [circuit.name, era]);
+
+  const simulation = useMemo(() => {
+    return simulateLap(circuit, baseCar, { step: 3.0 });
+  }, [circuit, baseCar]);
 
   // Only show the pit-wall application after user presses Enter or dismisses the intro
   if (showIntro) {

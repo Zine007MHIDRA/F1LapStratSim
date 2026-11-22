@@ -21,13 +21,14 @@ export default function StrategyOptimizerView({ circuit }: StrategyOptimizerView
   // Circuit Safety Car Risk
   const scInfo = TRACK_SC_PROBABILITY[circuit.id.toLowerCase()] || { scProb: 0.40, vscProb: 0.40 };
 
-  // Compute optimized strategies
+  // Compute optimized strategies (instantaneous via calibrated sensitivity model)
   const strategies: StrategyPlanResult[] = useMemo(() => {
     return optimizeStrategy(circuit, totalLaps, include2Stop, 15, {
+      pitLossS,
       scLap: scLap ?? undefined,
       dirtyAirLaps: simulateDirtyAir ? 12 : 0,
     });
-  }, [circuit, totalLaps, include2Stop, scLap, simulateDirtyAir]);
+  }, [circuit, totalLaps, include2Stop, pitLossS, scLap, simulateDirtyAir]);
 
   // Selected strategy detailed race breakdown
   const activePlan = strategies[selectedPlanIdx] || strategies[0];
