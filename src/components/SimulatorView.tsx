@@ -341,6 +341,7 @@ export default function SimulatorView({ circuit, era }: SimulatorViewProps) {
             activeDistanceM={hoverDistM}
             onHoverDistance={setHoverDistM}
             simulation={simulation}
+            era={era}
           />
 
           {/* ERS Energy Telemetry Module */}

@@ -11,6 +11,7 @@ import {
   DriverProfile,
   DriverSessionStats,
 } from '../data/driverSessions';
+import { getParticipatingDrivers, RaceParticipant } from '../data/raceParticipants';
 import {
   Play,
   Pause,
@@ -26,6 +27,7 @@ interface TrackMapProps {
   onHoverDistance?: (distM: number) => void;
   simulation?: LapSimulationResult;
   className?: string;
+  era?: '2025' | '2026';
 }
 
 export type TrackViewMode = 'broadcast' | 'elevation' | 'heatmap' | 'drs' | 'sectors';
@@ -36,12 +38,31 @@ export default function TrackMap({
   onHoverDistance,
   simulation,
   className = '',
+  era = '2025',
 }: TrackMapProps) {
   const telemetry = circuit.telemetry;
   const lapLength = circuit.lapLengthM || 5000;
 
+  // Participating drivers for this specific circuit and era
+  const participants: RaceParticipant[] = useMemo(() => {
+    return getParticipatingDrivers(circuit.id, era);
+  }, [circuit.id, era]);
+
   // Driver & Session selection state
-  const [selectedDriverId, setSelectedDriverId] = useState<string>(circuit.poleDriver?.toLowerCase() || 'nor');
+  const [selectedDriverId, setSelectedDriverId] = useState<string>(
+    circuit.poleDriver?.toLowerCase() || participants[0]?.driverId || 'nor'
+  );
+
+  // Sync selected driver if not in current race participants list
+  useEffect(() => {
+    if (participants.length > 0) {
+      const exists = participants.some((p) => p.driverId === selectedDriverId);
+      if (!exists) {
+        setSelectedDriverId(participants[0].driverId);
+      }
+    }
+  }, [participants, selectedDriverId]);
+
   const [selectedSession, setSelectedSession] = useState<SessionType>('qualifying');
   const [ghostModeEnabled, setGhostModeEnabled] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<TrackViewMode>('broadcast');
@@ -68,9 +89,10 @@ export default function TrackMap({
       circuit.topSpeedKmh,
       circuit.sectorFractions,
       selectedDriverId,
-      selectedSession
+      selectedSession,
+      era
     );
-  }, [circuit, selectedDriverId, selectedSession]);
+  }, [circuit, selectedDriverId, selectedSession, era]);
 
   // Physics-accurate dynamic animation loop
   useEffect(() => {
@@ -600,20 +622,23 @@ export default function TrackMap({
       {/* 2. Driver & Session Selector Strip */}
       <div className="px-3 py-1.5 bg-[#0D0F13] border-b border-[#1E222B] flex flex-col gap-1.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          {/* Driver Selection Pills */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
-            <span className="text-[10px] font-bold text-[#64748B] uppercase pr-1 flex items-center gap-1">
+          {/* Driver Selection Pills (All 20 participating drivers in classified grid order) */}
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5 max-w-full">
+            <span className="text-[10px] font-bold text-[#64748B] uppercase pr-1 flex items-center gap-1 whitespace-nowrap">
               <Radio className="w-3 h-3 text-[#00E5FF]" strokeWidth={1.5} />
-              DRIVER:
+              GRID ({participants.length}):
             </span>
-            {DRIVERS.map((d) => {
+            {participants.map((p) => {
+              const d = getDriver(p.driverId);
               const isSelected = selectedDriverId === d.id;
+              const isPole = p.position === 1;
               return (
                 <button
-                  key={d.id}
+                  key={`${p.driverId}-${p.position}`}
                   type="button"
                   onClick={() => setSelectedDriverId(d.id)}
-                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded-[1px] text-[10px] font-bold uppercase transition-colors border cursor-pointer ${
+                  title={`${d.name} • ${d.team} • P${p.position} ${p.deltaToPole <= 0 ? '(POLE)' : `(+${p.deltaToPole.toFixed(3)}s)`}`}
+                  className={`flex items-center gap-1 px-1.5 py-0.5 rounded-[1px] text-[10px] font-bold uppercase transition-colors border cursor-pointer whitespace-nowrap ${
                     isSelected
                       ? 'text-white border-current'
                       : 'bg-[#14171E] text-[#64748B] hover:text-white border-[#1E222B]'
@@ -624,9 +649,12 @@ export default function TrackMap({
                   }}
                 >
                   <span
-                    className="w-1.5 h-1.5 rounded-full inline-block"
+                    className="w-1.5 h-1.5 rounded-full inline-block shrink-0"
                     style={{ backgroundColor: d.teamColor }}
                   />
+                  <span className={`text-[8px] font-mono opacity-60 ${isPole ? 'text-[#FF2A54] font-black opacity-100' : ''}`}>
+                    P{p.position}
+                  </span>
                   <span>{d.code}</span>
                 </button>
               );

@@ -90,6 +90,7 @@ export default function Home() {
                 activeDistanceM={hoverDistM}
                 onHoverDistance={setHoverDistM}
                 simulation={simulation}
+                era={era}
               />
             </div>
             <div className="lg:col-span-7">
